@@ -36,7 +36,7 @@ For CentOS, you can find the source code from [GitHub](https://github.com/h-send
 ***sudo make install***  
 
 * ROOT  
-ROOT is used to plot You can install by [some ways](https://root.cern/install/).  Here, I describe the installation from source.  Also I use not release version.  In the case of you want the stable version, please download the source code as same as the [ROOT installation page](https://root.cern/install/build_from_source/).  Also I install ROOT at /opt/ROOT like a old style CERN software.  The version used is 6.22.06.  Usually ROOT is already installed by your team.  If installed, you can skip.  But if you will get some troubles from monitoring, back to here.  
+ROOT is used to plot. You can install by [some ways](https://root.cern/install/).  Here, I describe the installation from source.  Also I use not release version.  In the case of you want the stable version, please download the source code as same as the [ROOT installation page](https://root.cern/install/build_from_source/).  Also I install ROOT at /opt/ROOT like a old style CERN software.  The version used is 6.22.06.  Usually ROOT is already installed by your team.  If installed, you can skip.  But if you will get some troubles from monitoring, back to here.  
 ***wget https://root.cern/download/root_v6.22.06.source.tar.gz***  
 ***mkdir build_root***  
 ***cd build_root***  
@@ -113,7 +113,7 @@ Restart the HTTP server
 The page is written in TypeScript.  The source code is https://github.com/aogaki/DAQController  
 The compiled version is at DAQController.  Under the DAQController, there is the assets directory.  
 Editting the setting file apiSettings.json at assets.  Change the operator address as IP address of DAQ PC.  After editing, cp the file to proper place.    
-***sudo cp DAQController /var/www/html/controller***
+***sudo cp -a DAQController /var/www/html/controller***
 
 ## Preparation
 DELILA expects TDigiTes is under DELILA directory (soon we will use git module).  Under the DELILA directory you can see Components directory.  There are some components for DAQ system.  Those also expects (Make files in the directory).  TDigiTes will be under the DELILA directory.  
