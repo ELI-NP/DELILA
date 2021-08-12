@@ -116,4 +116,10 @@ Editting the setting file apiSettings.json at assets.  Change the operator addre
 ***sudo cp DAQController /var/www/html/controller***
 
 ## Preparation
-DELILA expects TDigiTes is under DELILA directory.  
+DELILA expects TDigiTes is under DELILA directory (soon we will use git module).  Under the DELILA directory you can see Components directory.  There are some components for DAQ system.  Those also expects (Make files in the directory).  TDigiTes will be under the DELILA directory.  
+* eliade.xml  
+This is the file to start up the DAQ system.  Describing the structure of the system.  The details will be add here soon.  
+* PHA.conf, PSD.conf, Slave.conf  
+Those are the setting file for TDigiTes called by some components (e.g. ReaderPHA).  
+* Component description  
+NYI
