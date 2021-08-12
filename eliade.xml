@@ -1,0 +1,95 @@
+<?xml version="1.0"?>
+<!-- DON'T REMOVE THE ABOVE LINE.                                     -->
+<!-- DON'T PUT ANY LINES ABOVE THE 1ST LINE.                          -->
+<!-- Sample config.xml to run TinySource and TinySink.                -->
+<!-- Please rewrite execPath (2 places), confFile (2 places) suitable -->
+<!-- for your directory structure.                                    -->
+<!-- run.py will create rtc.conf in /tmp/daqmw/rtc.conf               -->
+<!-- If you use run.py, set confFile as /tmp/daqmw/rtc.conf           -->
+<configInfo>
+  <daqOperator>
+    <hostAddr>172.18.4.104</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+	<component cid="ReaderPSD0">
+          <hostAddr>172.18.4.104</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderPSD0.rtc</instName>
+          <execPath>/home/eliade/DAQ/Components/ReaderPSD/ReaderPSDComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="RecordLength">5000</param>
+	    <param pid="ConfigFile">/home/eliade/DAQ/PSD.conf</param>
+	  </params>
+        </component>
+        <component cid="Dispatcher0">
+          <hostAddr>172.18.4.104</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/eliade/DAQ/EneStation/Dispatcher/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="ReaderPSD0:reader_out"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">dispatcher_in</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>172.18.4.104</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/eliade/DAQ/EneStation/Monitor/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out1"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+	    <param pid="p0">0</param>
+	    <param pid="p1">0.00071466881</param>
+	    <param pid="UploadInterval">60</param>
+            <param pid="PeakThreshold">0.05</param>
+            <param pid="TargetEne">1.33</param>
+          </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>172.18.4.104</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/eliade/DAQ/EneStation/Recorder/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+		  <param pid="OutputDir">/eliadedisks/w1/</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>
