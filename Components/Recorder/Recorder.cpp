@@ -13,6 +13,7 @@
 
 #include <TSystem.h>
 #include <TFile.h>
+#include <Compression.h>
 
 #include "../../TDigiTES/include/TPHAData.hpp"
 
@@ -64,11 +65,12 @@ Recorder::Recorder(RTC::Manager* manager)
   fSubRunNumber = 0;
 
   fDataSize = 0.;
-  fDataLimit = 1024. * 1024. * 1024. * 1.; // 1 GB
-  // fDataLimit = 1024. * 1024. * 1024. * 2.; // 2GB
-  // fDataLimit = 1024. * 1024. * 2.; // 2MB
+  fDataLimit = 1024. * 1024. * 1024. * 0.9; // 900 MiB
+  // fDataLimit = 1024. * 1024. * 1024. * 1.; // 1 GiB
+  // fDataLimit = 1024. * 1024. * 1024. * 2.; // 2GiB
+  // fDataLimit = 1024. * 1024. * 2.; // 2MiB
 
-  fDataVec.reserve(5000000);
+  ResetVec();
   
   fOutputDir = "/DAQ/Output";
 }
@@ -108,10 +110,11 @@ int Recorder::daq_configure()
 
   ResetVec();
 
-  // Unfortunately, this can not use C++17 with filesystem
+  // Unfortunately, this can not use filesystem class of C++17.
   // std::filesystem::exists(fOutputDir);
 
   // Using ROOT lib
+  std::cout << fOutputDir << std::endl;
   if(gSystem->AccessPathName(fOutputDir)) {
     std::cerr << "There are no directory " << fOutputDir
 	      << "\nCheck the configulation." << std::endl;
@@ -157,6 +160,10 @@ int Recorder::daq_start()
   fSubRunNumber = 0;
   fLastSave = time(nullptr);
   fDataSize = 0.;
+
+  fStopFlag = false;
+  fMakeTreeThread = std::thread(&Recorder::MakeTree, this);
+  fWriteFileThread = std::thread(&Recorder::WriteFile, this);
   
   return 0;
 }
@@ -166,9 +173,13 @@ int Recorder::daq_stop()
   std::cerr << "*** Recorder::stop" << std::endl;
   reset_InPort();
 
-  WriteData();
+  EnqueueData();
   ResetVec();
 
+  fStopFlag = true;
+  fMakeTreeThread.join();
+  fWriteFileThread.join();
+  
   return 0;
 }
 
@@ -237,9 +248,12 @@ int Recorder::daq_run()
     return 0;
   }
 
-  check_header_footer(m_in_data, recv_byte_size); // check header and footer
   unsigned int event_byte_size = get_event_size(recv_byte_size);
-
+  if (m_debug) {
+    std::cout << "Size: " << event_byte_size <<"\t"
+	      << "Sequence: " << get_sequence_num() << std::endl;
+  }
+  check_header_footer(m_in_data, recv_byte_size); // check header and footer
   /////////////  Write component main logic here. /////////////
   // online_analyze();
   /////////////////////////////////////////////////////////////
@@ -252,7 +266,7 @@ int Recorder::daq_run()
   auto now = time(nullptr);
   if((now - fLastSave > fSaveInterval) ||
      (fDataSize > fDataLimit)){
-    WriteData();
+    EnqueueData();
     ResetVec();    
     fLastSave = now;
     fDataSize = 0.;
@@ -263,17 +277,8 @@ int Recorder::daq_run()
 
 void Recorder::ResetVec()
 {
-  for(auto &&data: fDataVec) delete data;
-  fDataVec.clear();
-  /*  
-  fTree.reset(new TTree("ELIADE_Tree", "ELIADE"));
-  fTree->Branch("Mod", &fMod, "fMod/b");
-  fTree->Branch("Ch", &fCh, "fCh/b");
-  fTree->Branch("TimeStamp", &fTimeStamp, "fTimeStamp/l");
-  fTree->Branch("Energy", &fEnergy, "fEnergy/s");
-  fTree->Branch("RecordLength", &fRecordLength, "fRecordLength/i");
-  fTree->Branch("Signal", fTrace1, "fTrace1[fRecordLength]/s");
-  */
+  fpDataVec.reset(new std::vector<TreeData>);
+  fpDataVec->reserve(2 * fDataLimit / sizeof(TreeData));
 }
 
 int Recorder::FillData(unsigned int dataSize)
@@ -284,104 +289,149 @@ int Recorder::FillData(unsigned int dataSize)
   constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
   constexpr auto sizeEne = sizeof(TreeData::Energy);
   constexpr auto sizeRL =  sizeof(TreeData::RecordLength);
-  constexpr auto sizeEle = sizeof(*(TreeData::Trace1));
 
   constexpr unsigned int headerSize = 8;
   
   int nHits = 0;
   for(unsigned int i = headerSize; i < dataSize + headerSize;) {
-    auto data = new TreeData;
-    
+    TreeData data;
+
     // The order of data should be the same as Reader
-    memcpy(&(data->Mod), &m_in_data.data[i], sizeMod);
+    memcpy(&(data.Mod), &m_in_data.data[i], sizeMod);
     i += sizeMod;
 
-    memcpy(&(data->Ch), &m_in_data.data[i], sizeCh);
+    memcpy(&(data.Ch), &m_in_data.data[i], sizeCh);
     i += sizeCh;
 
-    memcpy(&(data->TimeStamp), &m_in_data.data[i], sizeTS);
+    memcpy(&(data.TimeStamp), &m_in_data.data[i], sizeTS);
     i += sizeTS;
 
-    memcpy(&(data->Energy), &m_in_data.data[i], sizeEne);
+    memcpy(&(data.Energy), &m_in_data.data[i], sizeEne);
     i += sizeEne;
 
-    memcpy(&(data->RecordLength), &m_in_data.data[i], sizeRL);
+    memcpy(&(data.RecordLength), &m_in_data.data[i], sizeRL);
     i += sizeRL;
 
-    if(data->RecordLength > 0){
-      auto sizeTrace = sizeof(*(PHAData::Trace1)) * data->RecordLength;
-      data->Trace1 = new uint16_t[data->RecordLength];
-      memcpy(data->Trace1, &m_in_data.data[i], sizeTrace);
+    if(data.RecordLength > 0){
+      auto sizeTrace = sizeof(*(PHAData::Trace1)) * data.RecordLength;
+      data.Trace1.resize(data.RecordLength);
+      memcpy(&data.Trace1[0], &m_in_data.data[i], sizeTrace);
       i += sizeTrace;
     }
 
-    fDataVec.push_back(data);
+    fpDataVec->push_back(data);
     nHits++;
   }
 
   return nHits;
 }
 
-void Recorder::WriteData()
+void Recorder::EnqueueData()
 {
-  std::thread t(&Recorder::WriteTree, this, fDataVec);
-  t.detach();
-  
-  //WriteTree(fDataVec);
-  
-  fDataVec.clear();
+  fMutex.lock();
+  fRawDataQueue.push_back(fpDataVec.release());
+  fMutex.unlock();
+
+  ResetVec();
 }
 
-void Recorder::WriteTree(std::vector<TreeData *> dataVec)
+void Recorder::MakeTree()
 {
-  std::sort(dataVec.begin(), dataVec.end(), [](const TreeData *a, const TreeData *b){
-					      return a->TimeStamp < b->TimeStamp;
-					    });
+  while(true){
+    fMutex.lock();
+    auto nEntries = fRawDataQueue.size();
+    fMutex.unlock();
 
-  auto runNumber = get_run_number();
-  auto fileName = fOutputDir + Form("/run%d_%d.root", runNumber, fSubRunNumber);
-  if(!gSystem->AccessPathName(fileName)){
-    // In the case of file existing, adding UNIX time.
-    fileName = fOutputDir + Form("/run%d_%d_%ld.root", runNumber, fSubRunNumber, time(nullptr));
-  }
-  
-  auto file = new TFile(fileName, "NEW");
-  auto tree = new TTree("ELIADE_Tree", "ELIADE data");
+    if(nEntries > 0) {
+      fMutex.lock();
+      auto dataVec = fRawDataQueue.front();
+      fRawDataQueue.pop_front();
+      auto tree = new TTree("ELIADE_Tree", "ELIADE data");
+      tree->SetDirectory(nullptr); // we need to clearly set directory as nullptr here
+      fMutex.unlock();
 
-  UChar_t Mod, Ch;
-  ULong64_t TimeStamp;
-  UShort_t Energy;
-  UInt_t RecordLength;
-  UShort_t Signal[10000];
-  tree->Branch("Mod", &Mod, "Mod/b");
-  tree->Branch("Ch", &Ch, "Ch/b");
-  tree->Branch("TimeStamp", &TimeStamp, "TimeStamp/l");
-  tree->Branch("Energy", &Energy, "Energy/s");
-  tree->Branch("RecordLength", &RecordLength, "RecordLength/i");
-  tree->Branch("Signal", Signal, "Signal[RecordLength]/s");
-   
-  for(auto iEve = 0; iEve < dataVec.size(); iEve++) {
-    auto data = dataVec[iEve];
+      std::sort(dataVec->begin(), dataVec->end(), [](const TreeData &a, const TreeData &b){
+	  return a.TimeStamp < b.TimeStamp;
+	});
+      
+      UChar_t Mod, Ch;
+      ULong64_t TimeStamp;
+      UShort_t Energy;
+      UInt_t RecordLength;
+      UShort_t Signal[100000]{0};
+      tree->Branch("Mod", &Mod, "Mod/b");
+      tree->Branch("Ch", &Ch, "Ch/b");
+      tree->Branch("TimeStamp", &TimeStamp, "TimeStamp/l");
+      tree->Branch("Energy", &Energy, "Energy/s");
+      tree->Branch("RecordLength", &RecordLength, "RecordLength/i");
+      tree->Branch("Signal", Signal, "Signal[RecordLength]/s");
+      
+      for(auto iEve = 0; iEve < dataVec->size(); iEve++) {
+	Mod = dataVec->at(iEve).Mod;
+	Ch = dataVec->at(iEve).Ch;
+	TimeStamp = dataVec->at(iEve).TimeStamp;
+	Energy = dataVec->at(iEve).Energy;
+	RecordLength = dataVec->at(iEve).RecordLength;
+	if(RecordLength > 0)
+	  std::copy(&dataVec->at(iEve).Trace1[0], &dataVec->at(iEve).Trace1[RecordLength], Signal);
+	
+	tree->Fill();
+      }
+
+      fMutex.lock();
+      fTreeQueue.push_back(tree);
+      fMutex.unlock();
+
+      delete dataVec;
+    }
     
-    Mod = data->Mod;
-    Ch = data->Ch;
-    TimeStamp = data->TimeStamp;
-    Energy = data->Energy;
-    RecordLength = data->RecordLength;
-    if(RecordLength > 0) std::copy(data->Trace1, data->Trace1 + RecordLength, Signal);
+    if(fRawDataQueue.size() == 0 && fTreeQueue.size() == 0 && fStopFlag)
+      break;
     
-    tree->Fill();
+    usleep(1000);
   }
-  
-  tree->Write();
-  file->Close();
-  delete file;
-
-  fSubRunNumber++;
-
-  for(auto &&data: dataVec) delete data;
 }
 
+void Recorder::WriteFile()
+{
+  while(true) {
+    fMutex.lock();
+    auto nEntries = fTreeQueue.size();
+    fMutex.unlock();
+
+    if(nEntries > 0) {
+      fMutex.lock();
+      auto tree = fTreeQueue.front();
+      fTreeQueue.pop_front();
+      fMutex.unlock();
+
+      auto runNumber = get_run_number();
+      auto fileName = fOutputDir + Form("/run%d_%d.root", runNumber, fSubRunNumber);
+      if(!gSystem->AccessPathName(fileName)){
+	// In the case of file already existing, adding UNIX time.
+	fileName = fOutputDir + Form("/run%d_%d_%ld.root", runNumber, fSubRunNumber, time(nullptr));
+      }
+      fSubRunNumber++;
+
+      auto file = new TFile(fileName, "NEW");
+      tree->SetDirectory(file);
+      tree->Write();
+
+      std::cout << "\nFinished data writing: " << fileName <<"\n"
+		<< "Number of events in " << fileName << ": " << tree->GetEntries() <<  std::endl;
+
+      file->Close();
+      delete file;
+    }
+    
+    if(fRawDataQueue.size() == 0 && fTreeQueue.size() == 0 && fStopFlag)
+      break;
+    
+    usleep(1000);
+  }
+    
+
+}
 
 extern "C"
 {

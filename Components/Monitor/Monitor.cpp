@@ -7,7 +7,10 @@
  *
  */
 
+#include <sys/stat.h>
 #include <algorithm>
+#include <fstream>
+#include <nlohmann/json.hpp>
 
 #include <TSystem.h>
 #include <TStyle.h>
@@ -38,6 +41,7 @@ static const char* monitor_spec[] =
     "lang_type",         "compile",
     ""
   };
+
 
 // This factor is for fitting
 constexpr auto kBGRange = 2.5;
@@ -70,6 +74,14 @@ Double_t FitFnc(Double_t *pos, Double_t *par)
   val += backGround;
 
   return val;
+}
+
+// For CURL
+size_t CallbackFunc(char *ptr, size_t size, size_t nmemb, std::string *stream)
+{
+  int dataLength = size * nmemb;
+  if(ptr != nullptr) stream->assign(ptr, dataLength);
+  return dataLength;
 }
 
 Monitor::Monitor(RTC::Manager* manager)
@@ -108,11 +120,16 @@ Monitor::Monitor(RTC::Manager* manager)
       fServ->Register(regDirectory, fSignal[iBrd][iCh].get());
     }
   }
-  
+
+  fCounter = 0;
+  fDumpAPI = "";
+  fDumpState = "";
+  fEveRateAPI = "";
 }
 
 Monitor::~Monitor()
 {
+  curl_easy_cleanup(fCurl);
 }
 
 RTC::ReturnCode_t Monitor::onInitialize()
@@ -151,12 +168,16 @@ int Monitor::daq_configure()
   gStyle->SetOptStat(1111);
   gStyle->SetOptFit(1111);
 
-  for(auto &&histVec: fHist){
-    for(auto &&hist: histVec){
-      hist->Reset();
-    }
+  fCurl = curl_easy_init();
+  if (fCurl == nullptr) {
+    std::cerr << "Failed to initializing curl" << std::endl;
+    return 1;
   }
-  
+  if(fDumpAPI != ""){
+    curl_easy_setopt(fCurl, CURLOPT_URL, fDumpAPI.c_str());
+    curl_easy_setopt(fCurl, CURLOPT_WRITEFUNCTION, CallbackFunc);
+    curl_easy_setopt(fCurl, CURLOPT_WRITEDATA, &fDumpState);
+  }
   
   // Using name of histogram "hist", NOT the variable "fHist"
   // fServ->RegisterCommand("/Reset","/hist/->Reset()", "button;rootsys/icons/ed_delete.png");
@@ -178,6 +199,11 @@ int Monitor::parse_params(::NVList* list)
     std::cerr << "sname: " << sname << "  ";
     std::cerr << "value: " << svalue << std::endl;
 
+    if(sname == "DumpAPI"){
+      fDumpAPI = svalue;
+    } else if (sname == "EveRateAPI") {
+      fEveRateAPI = svalue;
+    }
   }
    
   return 0;
@@ -195,6 +221,18 @@ int Monitor::daq_start()
   std::cerr << "*** Monitor::start" << std::endl;
   m_in_status  = BUF_SUCCESS;
 
+  fLastCountTime = time(0);
+  for(auto &&brd: fEventCounter) {
+    for(auto &&ch: brd) {
+      ch = 0;
+    }
+  }
+  for(auto &&histVec: fHist){
+    for(auto &&hist: histVec){
+      hist->Reset();
+    }
+  }
+    
   return 0;
 }
 
@@ -265,7 +303,24 @@ int Monitor::daq_run()
   if (m_debug) {
     std::cerr << "*** Monitor::run" << std::endl;
   }
+  
+  if(fDumpAPI != "") {
+    // fDumpState = "";
+    auto curlCode = curl_easy_perform(fCurl);
+    // std::cout << curlCode <<"\t"<< fDumpState << std::endl;
+    if(curlCode == 0 && fDumpState == "true")
+      DumpHists();
+  }
 
+  // constexpr auto uploadInterval = 60;
+  constexpr auto uploadInterval = 10;
+  auto now = time(0);
+  auto timeDiff = now - fLastCountTime;
+  if(timeDiff > uploadInterval) {
+    fLastCountTime = now;
+    UploadEventRate(timeDiff);
+  }
+  
   unsigned int recv_byte_size = read_InPort();
   if (recv_byte_size == 0) { // Timeout
     return 0;
@@ -279,13 +334,12 @@ int Monitor::daq_run()
   /////////////////////////////////////////////////////////////
 
   FillHist(event_byte_size);
-
-  constexpr long updateInterval = 1000;
-  if((fCounter++ % updateInterval) == 0){
-
-  } 
-
   gSystem->ProcessEvents();
+
+  // constexpr long updateInterval = 1000;
+  // if((fCounter++ % updateInterval) == 0){
+  // gSystem->ProcessEvents();
+  // }
 
   inc_sequence_num();                       // increase sequence num.
   inc_total_data_size(event_byte_size);     // increase total data byte size
@@ -331,9 +385,80 @@ void Monitor::FillHist(int size)
        data.ChNumber >= 0 && data.ChNumber < kgChs &&
        data.Energy < (1 << 15)){
       fHist[data.ModNumber][data.ChNumber]->Fill(data.Energy);
+      fEventCounter[data.ModNumber][data.ChNumber]++;
       
       for(auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
 	fSignal[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint, data.Trace1[iPoint]);
+    }
+  }
+  
+}
+
+void Monitor::DumpHists()
+{
+  std::cout << "Dump ASCII files" << std::endl;
+  auto now = time(nullptr);
+  auto runNo = get_run_number();
+  std::string dirName = "/tmp/daqmw/run" + std::to_string(runNo) + "_" + std::to_string(now);
+  mkdir(dirName.c_str(), 0777);
+
+  for(auto iBrd = 0; iBrd < kgBrds; iBrd++) {
+    for(auto iCh = 0; iCh < kgChs; iCh++) {
+      auto fileName = dirName + "/" + Form("Brd%02dCh%02d.txt", iBrd, iCh);
+      std::cout << fileName << std::endl;
+      std::ofstream fout(fileName);
+
+      const auto nBins = fHist[iBrd][iCh]->GetNbinsX();
+      for(auto iBin = 1; iBin <= nBins; iBin++) {
+	fout << fHist[iBrd][iCh]->GetBinCenter(iBin) <<"\t"
+	     << fHist[iBrd][iCh]->GetBinContent(iBin) <<"\n";
+      }
+      // fout << std::endl;
+      fout.close();
+    }
+  }
+
+}
+
+void Monitor::UploadEventRate(int timeDuration)
+{
+  for(auto &&brd: fEventCounter) {
+    for(auto &&ch: brd) {
+      ch /= timeDuration;
+    }
+  }
+
+  nlohmann::json result;
+  nlohmann::json j_array(fEventCounter);
+  result["eveRate"] = j_array;
+  std::string postData = result.dump();
+  // std::cout << postData << std::endl;
+  
+  
+  if(fEveRateAPI != "") {
+    auto curl = curl_easy_init();
+    if(curl){
+      curl_easy_setopt(curl, CURLOPT_URL, fEveRateAPI.c_str());
+      curl_easy_setopt(curl, CURLOPT_POST, true);
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postData.c_str());
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(postData.c_str()));
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CallbackFunc);
+      std::string buf;
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
+      auto res = curl_easy_perform(curl);
+      curl_easy_cleanup(curl);
+
+      if (res != CURLE_OK) {
+	std::cerr << "Communication error in UploadEventRate: " << res << std::endl;
+	std::exit (1);
+      }
+    }
+  }
+  
+  fLastCountTime = time(0);
+  for(auto &&brd: fEventCounter) {
+    for(auto &&ch: brd) {
+      ch = 0;
     }
   }
   

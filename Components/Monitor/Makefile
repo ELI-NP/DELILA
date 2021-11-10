@@ -5,7 +5,7 @@ all: $(COMP_NAME)Comp
 SRCS += $(COMP_NAME).cpp
 SRCS += $(COMP_NAME)Comp.cpp
 
-LDFLAGS += $(shell root-config --glibs) -lRHTTP
+LDFLAGS += $(shell root-config --glibs) -lRHTTP -lcurl
 CPPFLAGS += -I$(shell root-config --incdir) -std=c++11
 
 # sample install target

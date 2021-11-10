@@ -15,6 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <deque>
 
 #include <TTree.h>
 #include <TString.h>
@@ -64,10 +65,7 @@ private:
   BufferStatus m_in_status;
   bool m_debug;
 
-  // For ROOT file recording
   int FillData(unsigned int dataSize);
-  void WriteData();
-  void WriteTree(std::vector<TreeData *> dataVec);
 
   TString fOutputDir;
   
@@ -78,8 +76,21 @@ private:
   unsigned long fSaveInterval;
   unsigned int fSubRunNumber;
 
-  std::vector<TreeData *> fDataVec;
+  std::unique_ptr<std::vector<TreeData>> fpDataVec;
   void ResetVec();
+
+  // When the stop, or very high event rate case,
+  // We need to separate the data writing part.
+  // Data writing takes long time.
+  void EnqueueData();
+  void MakeTree();
+  void WriteFile();
+  bool fStopFlag;
+  std::thread fMakeTreeThread;
+  std::thread fWriteFileThread;
+  std::deque<std::vector<TreeData> *> fRawDataQueue;
+  std::deque<TTree *> fTreeQueue;
+  std::mutex fMutex;
 };
 
 
