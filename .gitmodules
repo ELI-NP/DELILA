@@ -1,0 +1,3 @@
+[submodule "TDigiTES"]
+	path = TDigiTES
+	url = https://github.com/aogaki/TDigiTES.git
