@@ -1,3 +1,6 @@
 [submodule "TDigiTES"]
 	path = TDigiTES
 	url = https://github.com/aogaki/TDigiTES.git
+[submodule "DAQController"]
+	path = DAQController
+	url = https://github.com/aogaki/DAQController.git
