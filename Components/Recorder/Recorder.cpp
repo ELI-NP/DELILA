@@ -7,6 +7,7 @@
  *
  */
 
+#include <unistd.h>
 #include <algorithm>
 #include <thread>
 // #include <filesystem>
@@ -73,6 +74,10 @@ Recorder::Recorder(RTC::Manager* manager)
   ResetVec();
   
   fOutputDir = "/DAQ/Output";
+
+  char hostName[128];
+  gethostname(hostName, sizeof(hostName));
+  fHostName = hostName;
 }
 
 Recorder::~Recorder()
@@ -345,7 +350,6 @@ void Recorder::MakeTree()
     if(nEntries > 0) {
       fMutex.lock();
       auto dataVec = fRawDataQueue.front();
-      fRawDataQueue.pop_front();
       auto tree = new TTree("ELIADE_Tree", "ELIADE data");
       tree->SetDirectory(nullptr); // we need to clearly set directory as nullptr here
       fMutex.unlock();
@@ -380,6 +384,7 @@ void Recorder::MakeTree()
 
       fMutex.lock();
       fTreeQueue.push_back(tree);
+      fRawDataQueue.pop_front();
       fMutex.unlock();
 
       delete dataVec;
@@ -387,7 +392,7 @@ void Recorder::MakeTree()
     
     if(fRawDataQueue.size() == 0 && fTreeQueue.size() == 0 && fStopFlag)
       break;
-    
+
     usleep(1000);
   }
 }
@@ -406,10 +411,12 @@ void Recorder::WriteFile()
       fMutex.unlock();
 
       auto runNumber = get_run_number();
-      auto fileName = fOutputDir + Form("/run%d_%d.root", runNumber, fSubRunNumber);
+      // auto hostName = "_" + fHostName;
+      auto extention = "_" + fHostName + ".root";
+      auto fileName = fOutputDir + Form("/run%d_%d", runNumber, fSubRunNumber) + extention;
       if(!gSystem->AccessPathName(fileName)){
 	// In the case of file already existing, adding UNIX time.
-	fileName = fOutputDir + Form("/run%d_%d_%ld.root", runNumber, fSubRunNumber, time(nullptr));
+	fileName = fOutputDir + Form("/run%d_%d_%ld", runNumber, fSubRunNumber, time(nullptr)) + extention;
       }
       fSubRunNumber++;
 

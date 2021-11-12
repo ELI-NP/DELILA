@@ -68,6 +68,7 @@ private:
   int FillData(unsigned int dataSize);
 
   TString fOutputDir;
+  TString fHostName;
   
   double fDataSize;
   double fDataLimit;
