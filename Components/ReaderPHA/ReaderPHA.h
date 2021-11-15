@@ -18,6 +18,8 @@
 #include "../../TDigiTES/include/TPHAData.hpp"
 #include "../../TDigiTES/include/TDigiTes.hpp"
 #include "../../TDigiTES/include/TPHA.hpp"
+#include "../include/TDataContainer.hpp"
+
 
 using namespace RTC;
 
@@ -52,13 +54,13 @@ private:
 
   int parse_params(::NVList* list);
   int read_data_from_detectors();
-  int set_data(unsigned int data_byte_size);
+  int set_data();
   int write_OutPort();
 
   static const int SEND_BUFFER_SIZE = 0;
   unsigned char m_data[SEND_BUFFER_SIZE];
   unsigned int m_recv_byte_size;
-
+  
   BufferStatus m_out_status;
   bool m_debug;
 
@@ -69,6 +71,8 @@ private:
   std::string fConfigFile;
   int fStartModNo = 0;
   std::string fParameterAPI;
+
+  TDataContainer fDataContainer;
 };
 
 

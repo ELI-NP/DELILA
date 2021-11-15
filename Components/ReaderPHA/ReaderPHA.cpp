@@ -7,8 +7,9 @@
  *
  */
 
-#include <fstream>
 #include <curl/curl.h>
+
+#include <fstream>
 #include <nlohmann/json.hpp>
 
 #include "ReaderPHA.h"
@@ -69,7 +70,7 @@ ReaderPHA::ReaderPHA(RTC::Manager *manager)
   // fDigitizer.reset(new TPHA);
 
   fData = new unsigned char[1024 * 1024 * 16];
-  
+
   fConfigFile = "/DAQ/PHA.conf";
   fParameterAPI = "";
 }
@@ -144,58 +145,63 @@ int ReaderPHA::daq_unconfigure()
   return 0;
 }
 
- int ReaderPHA::daq_start()
- {
-   std::cerr << "*** ReaderPHA::start" << std::endl;
+int ReaderPHA::daq_start()
+{
+  std::cerr << "*** ReaderPHA::start" << std::endl;
 
-   m_out_status = BUF_SUCCESS;
+  m_out_status = BUF_SUCCESS;
 
-   if(fParameterAPI != "") {
-     auto curl = curl_easy_init();
-     std::string buf;
-     curl_easy_setopt(curl, CURLOPT_URL, fParameterAPI.c_str());
-     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CallbackWrite);
-     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
-     auto ret = curl_easy_perform(curl);
-     curl_easy_cleanup(curl);
+  if (fParameterAPI != "") {
+    auto curl = curl_easy_init();
+    std::string buf;
+    curl_easy_setopt(curl, CURLOPT_URL, fParameterAPI.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CallbackWrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
+    auto ret = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
 
-     // code=404 is only from my web server.  For others, using 404 as key is crazy...
-     if(ret == CURLE_OK && (buf.find("code=404") == std::string::npos)) {
-       auto json = nlohmann::json::parse(buf);
-       auto par = fDigitizer->GetParameters();
-       const auto nBrds = par.NumBrd;
-       const auto nChs = par.NumPhyCh;
-       
-       for(auto iBrd = 0 + fStartModNo; iBrd < nBrds + fStartModNo; iBrd++) {
-	 for(auto iCh = 0; iCh < nChs; iCh++) {
-	   par.TrapPoleZero[iBrd][iCh] = json["PHAPar"][iBrd]["trapPoleZero"][iCh];
-	   par.TrapFlatTop[iBrd][iCh] = json["PHAPar"][iBrd]["trapFlatTop"][iCh];
-	   par.TrapRiseTime[iBrd][iCh] = json["PHAPar"][iBrd]["trapRiseTime"][iCh];
-	   par.PeakingTime[iBrd][iCh] = json["PHAPar"][iBrd]["peakingTime"][iCh];
-	   par.TTFsmoothing[iBrd][iCh] = json["PHAPar"][iBrd]["TTFSmoothing"][iCh];
-	   par.TTFdelay[iBrd][iCh] = json["PHAPar"][iBrd]["signalRiseTime"][iCh];
-	   par.TrgThreshold[iBrd][iCh] = json["PHAPar"][iBrd]["trgThreshold"][iCh];
-	   par.NsBaseline[iBrd][iCh] = json["PHAPar"][iBrd]["NSBaseline"][iCh];
-	   par.NSPeak[iBrd][iCh] = json["PHAPar"][iBrd]["NSPeak"][iCh];
-	   par.PeakHoldOff[iBrd][iCh] = json["PHAPar"][iBrd]["peakHoldOff"][iCh];
-	   // par.BaseLineHoldOff[iBrd][iCh] = json["PHAPar"][iBrd]["baselineHoldOff"][iCh];
-	   par.TrgHoldOff = json["PHAPar"][iBrd]["trgHoldOff"][iCh];
-	   // par.RTDWindow[iBrd][iCh] = json["PHAPar"][iBrd]["RTDWindow"][iCh];
-	   par.CoincWindow = json["PHAPar"][iBrd]["trgAccWindow"][iCh];
-	   // par.DigitalGain[iBrd][iCh] = json["PHAPar"][iBrd]["digitalGain"][iCh];
-	   par.EnergyFineGain[iBrd][iCh] = json["PHAPar"][iBrd]["eneFineGain"][iCh];
-	   par.Decimation[iBrd][iCh] = json["PHAPar"][iBrd]["decimation"][iCh];
-	 }
-       }
-       
-       fDigitizer->SetParameters(par);
-       fDigitizer->SetPHAPar();
-     }
-   }
-   
-   fDigitizer->Start();
-   return 0;
- }
+    // code=404 is only from my web server.  For others, using 404 as key is crazy...
+    if (ret == CURLE_OK && (buf.find("code=404") == std::string::npos)) {
+      auto json = nlohmann::json::parse(buf);
+      auto par = fDigitizer->GetParameters();
+      const auto nBrds = par.NumBrd;
+      const auto nChs = par.NumPhyCh;
+
+      for (auto iBrd = 0 + fStartModNo; iBrd < nBrds + fStartModNo; iBrd++) {
+        for (auto iCh = 0; iCh < nChs; iCh++) {
+          par.TrapPoleZero[iBrd][iCh] =
+              json["PHAPar"][iBrd]["trapPoleZero"][iCh];
+          par.TrapFlatTop[iBrd][iCh] = json["PHAPar"][iBrd]["trapFlatTop"][iCh];
+          par.TrapRiseTime[iBrd][iCh] =
+              json["PHAPar"][iBrd]["trapRiseTime"][iCh];
+          par.PeakingTime[iBrd][iCh] = json["PHAPar"][iBrd]["peakingTime"][iCh];
+          par.TTFsmoothing[iBrd][iCh] =
+              json["PHAPar"][iBrd]["TTFSmoothing"][iCh];
+          par.TTFdelay[iBrd][iCh] = json["PHAPar"][iBrd]["signalRiseTime"][iCh];
+          par.TrgThreshold[iBrd][iCh] =
+              json["PHAPar"][iBrd]["trgThreshold"][iCh];
+          par.NsBaseline[iBrd][iCh] = json["PHAPar"][iBrd]["NSBaseline"][iCh];
+          par.NSPeak[iBrd][iCh] = json["PHAPar"][iBrd]["NSPeak"][iCh];
+          par.PeakHoldOff[iBrd][iCh] = json["PHAPar"][iBrd]["peakHoldOff"][iCh];
+          // par.BaseLineHoldOff[iBrd][iCh] = json["PHAPar"][iBrd]["baselineHoldOff"][iCh];
+          par.TrgHoldOff = json["PHAPar"][iBrd]["trgHoldOff"][iCh];
+          // par.RTDWindow[iBrd][iCh] = json["PHAPar"][iBrd]["RTDWindow"][iCh];
+          par.CoincWindow = json["PHAPar"][iBrd]["trgAccWindow"][iCh];
+          // par.DigitalGain[iBrd][iCh] = json["PHAPar"][iBrd]["digitalGain"][iCh];
+          par.EnergyFineGain[iBrd][iCh] =
+              json["PHAPar"][iBrd]["eneFineGain"][iCh];
+          par.Decimation[iBrd][iCh] = json["PHAPar"][iBrd]["decimation"][iCh];
+        }
+      }
+
+      fDigitizer->SetParameters(par);
+      fDigitizer->SetPHAPar();
+    }
+  }
+
+  fDigitizer->Start();
+  return 0;
+}
 
 int ReaderPHA::daq_stop()
 {
@@ -245,37 +251,41 @@ int ReaderPHA::read_data_from_detectors()
         (sizeof(*(PHAData::Trace1)) * data->at(0)->RecordLength);
 
     const auto nData = data->size();
-    auto index = 0;
+    std::cout << nData << " hits" << std::endl;
     for (auto i = 0; i < nData; i++) {
-      if (received_data_size + oneHitSize > maxSize) break;
-
       if (data->at(i)->Energy > 0) {
+        auto index = 0;
+        std::vector<char> hit;
+        hit.resize(oneHitSize);
+
         unsigned char mod = data->at(i)->ModNumber + fStartModNo;
-        memcpy(&fData[index], &(mod), sizeMod);
+        memcpy(&hit[index], &(mod), sizeMod);
         index += sizeMod;
         received_data_size += sizeMod;
 
-        memcpy(&fData[index], &(data->at(i)->ChNumber), sizeCh);
+        memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
         index += sizeCh;
         received_data_size += sizeCh;
 
-        memcpy(&fData[index], &(data->at(i)->TimeStamp), sizeTS);
+        memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
         index += sizeTS;
         received_data_size += sizeTS;
 
-        memcpy(&fData[index], &(data->at(i)->Energy), sizeEne);
+        memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
         index += sizeEne;
         received_data_size += sizeEne;
 
-        memcpy(&fData[index], &(data->at(i)->RecordLength), sizeRL);
+        memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
         index += sizeRL;
         received_data_size += sizeRL;
 
         const auto sizeTrace =
             sizeof(*(PHAData::Trace1)) * data->at(i)->RecordLength;
-        memcpy(&fData[index], data->at(i)->Trace1, sizeTrace);
+        memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
         index += sizeTrace;
         received_data_size += sizeTrace;
+
+        fDataContainer.AddData(hit);
       }
     }
   }
@@ -283,22 +293,24 @@ int ReaderPHA::read_data_from_detectors()
   return received_data_size;
 }
 
-int ReaderPHA::set_data(unsigned int data_byte_size)
+int ReaderPHA::set_data()
 {
   unsigned char header[8];
   unsigned char footer[8];
 
-  set_header(&header[0], data_byte_size);
+  auto packet = fDataContainer.GetPacket();
+
+  set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
   ///set OutPort buffer length
-  m_out_data.data.length(data_byte_size + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
+  m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
-  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &fData[0], data_byte_size);
-  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + data_byte_size]), &footer[0],
+  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
+  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + packet.size()]), &footer[0],
          FOOTER_BYTE_SIZE);
 
-  return 0;
+  return packet.size();
 }
 
 int ReaderPHA::write_OutPort()
@@ -333,22 +345,22 @@ int ReaderPHA::daq_run()
     return 0;
   }
 
+  int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    m_recv_byte_size = read_data_from_detectors();
-    // std::cout << m_recv_byte_size << std::endl;
-    if (m_recv_byte_size > 0) {
-      set_data(m_recv_byte_size);  // set data to OutPort Buffer
+    read_data_from_detectors();
+    if (fDataContainer.GetSize() > 0) {
+      sentDataSize = set_data();  // set data to OutPort Buffer
     } else {
       return 0;
     }
   }
 
   if (write_OutPort() < 0) {
-    ;                                       // Timeout. do nothing.
-  } else if (m_recv_byte_size > 0) {        // OutPort write successfully done
-    inc_sequence_num();                     // increase sequence num.
-    inc_total_data_size(m_recv_byte_size);  // increase total data byte size
+    ;                                   // Timeout. do nothing.
+  } else if (sentDataSize > 0) {        // OutPort write successfully done
+    inc_sequence_num();                 // increase sequence num.
+    inc_total_data_size(sentDataSize);  // increase total data byte size
   }
 
   return 0;

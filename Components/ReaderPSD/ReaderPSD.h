@@ -1,6 +1,6 @@
 // -*- C++ -*-
 /*!
- * @file 
+ * @file
  * @brief
  * @date
  * @author
@@ -14,20 +14,20 @@
 #include <memory>
 #include <string>
 
-#include "DaqComponentBase.h"
-#include "../../TDigiTES/include/TPHAData.hpp"
-#include "../../TDigiTES/include/TPSDData.hpp"
 #include "../../TDigiTES/include/TDigiTes.hpp"
 #include "../../TDigiTES/include/TPHA.hpp"
+#include "../../TDigiTES/include/TPHAData.hpp"
 #include "../../TDigiTES/include/TPSD.hpp"
+#include "../../TDigiTES/include/TPSDData.hpp"
+#include "../include/TDataContainer.hpp"
+#include "DaqComponentBase.h"
 
 using namespace RTC;
 
-class ReaderPSD
-  : public DAQMW::DaqComponentBase
+class ReaderPSD : public DAQMW::DaqComponentBase
 {
-public:
-  ReaderPSD(RTC::Manager* manager);
+ public:
+  ReaderPSD(RTC::Manager *manager);
   ~ReaderPSD();
 
   // The initialize action (on CREATED->ALIVE transition)
@@ -38,11 +38,11 @@ public:
   // former rtc_active_do()
   virtual RTC::ReturnCode_t onExecute(RTC::UniqueId ec_id);
 
-private:
-  TimedOctetSeq          m_out_data;
+ private:
+  TimedOctetSeq m_out_data;
   OutPort<TimedOctetSeq> m_OutPort;
 
-private:
+ private:
   int daq_dummy();
   int daq_configure();
   int daq_unconfigure();
@@ -52,7 +52,7 @@ private:
   int daq_pause();
   int daq_resume();
 
-  int parse_params(::NVList* list);
+  int parse_params(::NVList *list);
   int read_data_from_detectors();
   int set_data(unsigned int data_byte_size);
   int write_OutPort();
@@ -70,12 +70,12 @@ private:
   std::deque<PSDData_t> fQue;
   std::string fConfigFile;
   int fStartModNo = 0;
+
+  TDataContainer fDataContainer;
 };
 
-
-extern "C"
-{
-    void ReaderPSDInit(RTC::Manager* manager);
+extern "C" {
+void ReaderPSDInit(RTC::Manager *manager);
 };
 
-#endif // READER_H
+#endif  // READER_H

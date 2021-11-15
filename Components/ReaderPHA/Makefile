@@ -11,9 +11,10 @@ SRCS += ../../TDigiTES/src/digiTES.cpp
 SRCS += ../../TDigiTES/src/ParamParser.cpp
 SRCS += ../../TDigiTES/src/TDigiTes.cpp
 SRCS += ../../TDigiTES/src/TPHA.cpp
+SRCS += ../src/TDataContainer.cpp
 
 LDLIBS += -lCAENDigitizer -lcurl
-CPPFLAGS += -std=c++11 -I../../TDigiTES/include
+CPPFLAGS += -std=c++11 -I../../TDigiTES/include -I../include
 
 # sample install target
 #

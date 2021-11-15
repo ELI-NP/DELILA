@@ -1,6 +1,6 @@
 # Install DAQ system
 
-This document is the installation log for Ubuntu 18.04 PC.  For Ubuntu 16 or 20, The procedures are almost same as the following.  Main difference is package name for ***"apt install"*** command.  Sometimes, the apt command suggest the right package name.  And also you can google to find the right package name.  This installation is based on the information on [DAQ-Middleware](https://daqmw.kek.jp/) and [ROOT](https://root.cern.ch/) web pages.
+This document is the installation log for Ubuntu 18.04 PC.  For Ubuntu 16 or 20, The procedures are almost same as the following.  Main difference is package name for **"apt install"** command.  Sometimes, the apt command suggest the right package name.  And also you can google to find the right package name.  This installation is based on the information on [DAQ-Middleware](https://daqmw.kek.jp/) and [ROOT](https://root.cern.ch/) web pages.
 At this moment, the system was tested on Ubuntu 18.04, Ubuntu 16.04, Ubuntu 20.04, and CentOS 8.  Ubuntu is the one of the famous distributions in general, CentOS is also very common distribution for nuclear, particle, high-energy physics people.
 
 ## Install software
