@@ -227,7 +227,7 @@ int ReaderPSD::read_data_from_detectors()
   return received_data_size;
 }
 
-int ReaderPSD::set_data(unsigned int data_byte_size)
+int ReaderPSD::set_data()
 {
   unsigned char header[8];
   unsigned char footer[8];

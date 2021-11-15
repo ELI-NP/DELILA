@@ -54,7 +54,7 @@ class ReaderPSD : public DAQMW::DaqComponentBase
 
   int parse_params(::NVList *list);
   int read_data_from_detectors();
-  int set_data(unsigned int data_byte_size);
+  int set_data();
   int write_OutPort();
 
   static const int SEND_BUFFER_SIZE = 0;
