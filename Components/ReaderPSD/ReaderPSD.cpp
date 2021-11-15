@@ -179,19 +179,18 @@ int ReaderPSD::read_data_from_detectors()
 
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
-  // std::cout << data->size() << std::endl;
+
   if (data->size() > 0) {
     const auto oneHitSize =
         sizeMod + sizeCh + sizeTS + sizeEne + sizeRL +
         (sizeof(*(PSDData::Trace1)) * data->at(0)->RecordLength);
 
     const auto nData = data->size();
-    auto index = 0;
-    std::vector<char> hit;
-    hit.resize(oneHitSize);
 
     for (auto i = 0; i < nData; i++) {
-      if (received_data_size + oneHitSize > maxSize) break;
+      std::vector<char> hit;
+      hit.resize(oneHitSize);
+      auto index = 0;
 
       unsigned char mod = data->at(i)->ModNumber + fStartModNo;
       memcpy(&hit[index], &(mod), sizeMod);
