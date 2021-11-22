@@ -174,7 +174,8 @@ int ReaderPSD::read_data_from_detectors()
   constexpr auto sizeMod = sizeof(PSDData::ModNumber);
   constexpr auto sizeCh = sizeof(PSDData::ChNumber);
   constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
-  constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
+  constexpr auto sizeLong = sizeof(PSDData::ChargeLong);
+  constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
   constexpr auto sizeRL = sizeof(PSDData::RecordLength);
 
   fDigitizer->ReadEvents();
@@ -182,7 +183,7 @@ int ReaderPSD::read_data_from_detectors()
 
   if (data->size() > 0) {
     const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeEne + sizeRL +
+        sizeMod + sizeCh + sizeTS + sizeLong + sizeRL +
         (sizeof(*(PSDData::Trace1)) * data->at(0)->RecordLength);
 
     const auto nData = data->size();
@@ -205,9 +206,13 @@ int ReaderPSD::read_data_from_detectors()
       index += sizeTS;
       received_data_size += sizeTS;
 
-      memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeEne);
-      index += sizeEne;
-      received_data_size += sizeEne;
+      memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeLong);
+      index += sizeLong;
+      received_data_size += sizeLong;
+
+      // memcpy(&hit[index], &(data->at(i)->ChargeShort), sizeShort);
+      // index += sizeShort;
+      // received_data_size += sizeShort;
 
       memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
       index += sizeRL;

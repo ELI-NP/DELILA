@@ -251,7 +251,6 @@ int ReaderPHA::read_data_from_detectors()
         (sizeof(*(PHAData::Trace1)) * data->at(0)->RecordLength);
 
     const auto nData = data->size();
-    std::cout << nData << " hits" << std::endl;
     for (auto i = 0; i < nData; i++) {
       if (data->at(i)->Energy > 0) {
         auto index = 0;
