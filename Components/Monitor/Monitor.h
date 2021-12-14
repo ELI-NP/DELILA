@@ -33,6 +33,7 @@ using namespace RTC;
 // Number of peaks for TSpectrum
 // constexpr int knPeaks = 8;
 
+
 class Monitor
   : public DAQMW::DaqComponentBase
 {
@@ -94,6 +95,9 @@ private:
   CURL *fCurl;
   std::string fDumpAPI;
   std::string fDumpState;
+
+  // Reset Histograms
+  void ResetHists();
   
 };
 

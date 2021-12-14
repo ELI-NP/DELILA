@@ -7,7 +7,7 @@
  *
  */
 
-#include "ReaderPSD.h"
+#include "ReaderWave.h"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
 using DAQMW::FatalType::OUTPORT_ERROR;
@@ -16,11 +16,11 @@ using DAQMW::FatalType::USER_DEFINED_ERROR1;
 // Module specification
 // Change following items to suit your component's spec.
 static const char *reader_spec[] = {"implementation_id",
-                                    "ReaderPSD",
+                                    "ReaderWave",
                                     "type_name",
-                                    "ReaderPSD",
+                                    "ReaderWave",
                                     "description",
-                                    "ReaderPSD component",
+                                    "ReaderWave component",
                                     "version",
                                     "1.0",
                                     "vendor",
@@ -37,7 +37,7 @@ static const char *reader_spec[] = {"implementation_id",
                                     "compile",
                                     ""};
 
-ReaderPSD::ReaderPSD(RTC::Manager *manager)
+ReaderWave::ReaderWave(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
       m_OutPort("reader_out", m_out_data),
       m_recv_byte_size(0),
@@ -59,29 +59,29 @@ ReaderPSD::ReaderPSD(RTC::Manager *manager)
   fConfigFile = "/DAQ/PSD.conf";
 }
 
-ReaderPSD::~ReaderPSD() {}
+ReaderWave::~ReaderWave() {}
 
-RTC::ReturnCode_t ReaderPSD::onInitialize()
+RTC::ReturnCode_t ReaderWave::onInitialize()
 {
   if (m_debug) {
-    std::cerr << "ReaderPSD::onInitialize()" << std::endl;
+    std::cerr << "ReaderWave::onInitialize()" << std::endl;
   }
 
   return RTC::RTC_OK;
 }
 
-RTC::ReturnCode_t ReaderPSD::onExecute(RTC::UniqueId ec_id)
+RTC::ReturnCode_t ReaderWave::onExecute(RTC::UniqueId ec_id)
 {
   daq_do();
 
   return RTC::RTC_OK;
 }
 
-int ReaderPSD::daq_dummy() { return 0; }
+int ReaderWave::daq_dummy() { return 0; }
 
-int ReaderPSD::daq_configure()
+int ReaderWave::daq_configure()
 {
-  std::cerr << "*** ReaderPSD::configure" << std::endl;
+  std::cerr << "*** ReaderWave::configure" << std::endl;
 
   ::NVList *paramList;
   paramList = m_daq_service0.getCompParams();
@@ -97,7 +97,7 @@ int ReaderPSD::daq_configure()
   return 0;
 }
 
-int ReaderPSD::parse_params(::NVList *list)
+int ReaderWave::parse_params(::NVList *list)
 {
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
@@ -119,9 +119,9 @@ int ReaderPSD::parse_params(::NVList *list)
   return 0;
 }
 
-int ReaderPSD::daq_unconfigure()
+int ReaderWave::daq_unconfigure()
 {
-  std::cerr << "*** ReaderPSD::unconfigure" << std::endl;
+  std::cerr << "*** ReaderWave::unconfigure" << std::endl;
 
   fDigitizer->FreeMemory();
   fDigitizer->CloseDigitizers();
@@ -129,9 +129,9 @@ int ReaderPSD::daq_unconfigure()
   return 0;
 }
 
-int ReaderPSD::daq_start()
+int ReaderWave::daq_start()
 {
-  std::cerr << "*** ReaderPSD::start" << std::endl;
+  std::cerr << "*** ReaderWave::start" << std::endl;
 
   m_out_status = BUF_SUCCESS;
 
@@ -141,30 +141,30 @@ int ReaderPSD::daq_start()
   return 0;
 }
 
-int ReaderPSD::daq_stop()
+int ReaderWave::daq_stop()
 {
-  std::cerr << "*** ReaderPSD::stop" << std::endl;
+  std::cerr << "*** ReaderWave::stop" << std::endl;
 
   fDigitizer->Stop();
 
   return 0;
 }
 
-int ReaderPSD::daq_pause()
+int ReaderWave::daq_pause()
 {
-  std::cerr << "*** ReaderPSD::pause" << std::endl;
+  std::cerr << "*** ReaderWave::pause" << std::endl;
 
   return 0;
 }
 
-int ReaderPSD::daq_resume()
+int ReaderWave::daq_resume()
 {
-  std::cerr << "*** ReaderPSD::resume" << std::endl;
+  std::cerr << "*** ReaderWave::resume" << std::endl;
 
   return 0;
 }
 
-int ReaderPSD::read_data_from_detectors()
+int ReaderWave::read_data_from_detectors()
 {
   int received_data_size = 0;
   /// write your logic here
@@ -236,7 +236,7 @@ int ReaderPSD::read_data_from_detectors()
   return received_data_size;
 }
 
-int ReaderPSD::set_data()
+int ReaderWave::set_data()
 {
   unsigned char header[8];
   unsigned char footer[8];
@@ -256,7 +256,7 @@ int ReaderPSD::set_data()
   return packet.size();
 }
 
-int ReaderPSD::write_OutPort()
+int ReaderWave::write_OutPort()
 {
   ////////////////// send data from OutPort  //////////////////
   bool ret = m_OutPort.write();
@@ -277,10 +277,10 @@ int ReaderPSD::write_OutPort()
   return 0;
 }
 
-int ReaderPSD::daq_run()
+int ReaderWave::daq_run()
 {
   if (m_debug) {
-    std::cerr << "*** ReaderPSD::run" << std::endl;
+    std::cerr << "*** ReaderWave::run" << std::endl;
   }
 
   if (check_trans_lock()) {  // check if stop command has come
@@ -310,10 +310,10 @@ int ReaderPSD::daq_run()
 }
 
 extern "C" {
-void ReaderPSDInit(RTC::Manager *manager)
+void ReaderWaveInit(RTC::Manager *manager)
 {
   RTC::Properties profile(reader_spec);
-  manager->registerFactory(profile, RTC::Create<ReaderPSD>,
-                           RTC::Delete<ReaderPSD>);
+  manager->registerFactory(profile, RTC::Create<ReaderWave>,
+                           RTC::Delete<ReaderWave>);
 }
 };

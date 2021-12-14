@@ -2,3 +2,5 @@
 *~
 *.o
 autogen
+.depend
+*Comp

@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include "ReaderPHA.h"
+#include "../../TDigiTES/include/TPSDData.hpp"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
 using DAQMW::FatalType::OUTPORT_ERROR;
@@ -107,6 +108,7 @@ int ReaderPHA::daq_configure()
   fDigitizer->LoadParameters(fConfigFile);
   fDigitizer->OpenDigitizers();
   fDigitizer->InitDigitizers();
+  fDigitizer->UseFineTS();
   fDigitizer->AllocateMemory();
 
   return 0;
@@ -236,55 +238,70 @@ int ReaderPHA::read_data_from_detectors()
 
   constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
 
-  constexpr auto sizeMod = sizeof(PHAData::ModNumber);
-  constexpr auto sizeCh = sizeof(PHAData::ChNumber);
-  constexpr auto sizeTS = sizeof(PHAData::TimeStamp);
-  constexpr auto sizeEne = sizeof(PHAData::Energy);
-  constexpr auto sizeRL = sizeof(PHAData::RecordLength);
-
+  constexpr auto sizeMod = sizeof(PSDData::ModNumber);
+  constexpr auto sizeCh = sizeof(PSDData::ChNumber);
+  constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(PSDData::FineTS);
+  constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
+  constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
+  constexpr auto sizeRL = sizeof(PSDData::RecordLength);
+  
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
   // std::cout << data->size() << std::endl;
   if (data->size() > 0) {
-    const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeEne + sizeRL +
-        (sizeof(*(PHAData::Trace1)) * data->at(0)->RecordLength);
-
     const auto nData = data->size();
+
     for (auto i = 0; i < nData; i++) {
-      if (data->at(i)->Energy > 0) {
+      const auto oneHitSize =
+        sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
+        (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+
+      if (data->at(i)->Energy > 0 && data->at(i)->Energy < 32767) {
         auto index = 0;
         std::vector<char> hit;
         hit.resize(oneHitSize);
 
-        unsigned char mod = data->at(i)->ModNumber + fStartModNo;
-        memcpy(&hit[index], &(mod), sizeMod);
-        index += sizeMod;
-        received_data_size += sizeMod;
+	PSDData dummy;
+	
+	dummy.ModNumber = data->at(i)->ModNumber + fStartModNo;
+	memcpy(&hit[index], &(dummy.ModNumber), sizeMod);
+	index += sizeMod;
+	received_data_size += sizeMod;
+      
+	memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
+	index += sizeCh;
+	received_data_size += sizeCh;
+	
+	memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
+	index += sizeTS;
+	received_data_size += sizeTS;
 
-        memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
-        index += sizeCh;
-        received_data_size += sizeCh;
+	dummy.FineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
+	memcpy(&hit[index], &(dummy.FineTS), sizeFineTS);
+	index += sizeFineTS;
+	received_data_size += sizeFineTS;
+	
+	memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
+	index += sizeEne;
+	received_data_size += sizeEne;
 
-        memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
-        index += sizeTS;
-        received_data_size += sizeTS;
-
-        memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
-        index += sizeEne;
-        received_data_size += sizeEne;
-
-        memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
-        index += sizeRL;
-        received_data_size += sizeRL;
-
-        const auto sizeTrace =
-            sizeof(*(PHAData::Trace1)) * data->at(i)->RecordLength;
-        memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
-        index += sizeTrace;
-        received_data_size += sizeTrace;
-
-        fDataContainer.AddData(hit);
+	dummy.ChargeShort = 0;
+	memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
+	index += sizeShort;
+	received_data_size += sizeShort;
+	
+	memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
+	index += sizeRL;
+	received_data_size += sizeRL;
+	
+	const auto sizeTrace =
+          sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength;
+	memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
+	index += sizeTrace;
+	received_data_size += sizeTrace;
+	
+	fDataContainer.AddData(hit);
       }
     }
   }

@@ -10,15 +10,15 @@
 #include <rtm/Manager.h>
 #include <iostream>
 #include <string>
-#include "ReaderES2.h"
+#include "ReaderWave.h"
 
 void MyModuleInit(RTC::Manager* manager)
 {
-    ReaderES2Init(manager);
+    ReaderWaveInit(manager);
     RTC::RtcBase* comp;
 
     // Create a component
-    comp = manager->createComponent("ReaderES2");
+    comp = manager->createComponent("ReaderWave");
 
     // Example
     // The following procedure is examples how handle RT-Components.

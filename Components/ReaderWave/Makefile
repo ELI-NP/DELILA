@@ -1,4 +1,4 @@
-COMP_NAME = ReaderES6
+COMP_NAME = ReaderWave
 
 all: $(COMP_NAME)Comp
 
@@ -11,9 +11,11 @@ SRCS += ../../TDigiTES/src/digiTES.cpp
 SRCS += ../../TDigiTES/src/ParamParser.cpp
 SRCS += ../../TDigiTES/src/TDigiTes.cpp
 SRCS += ../../TDigiTES/src/TPHA.cpp
+SRCS += ../../TDigiTES/src/TPSD.cpp
+SRCS += ../src/TDataContainer.cpp
 
 LDLIBS += -lCAENDigitizer
-CPPFLAGS += -std=c++11 -I../../TDigiTES/include
+CPPFLAGS += -std=c++11 -I../../TDigiTES/include -I../include
 
 # sample install target
 #

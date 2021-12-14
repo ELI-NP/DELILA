@@ -18,6 +18,8 @@
 #include <TCanvas.h>
 
 #include "Monitor.h"
+#include "../../TDigiTES/include/TPSDData.hpp"
+#include "influxdb.hpp"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
 using DAQMW::FatalType::INPORT_ERROR;
@@ -84,6 +86,13 @@ size_t CallbackFunc(char *ptr, size_t size, size_t nmemb, std::string *stream)
   return dataLength;
 }
 
+// To use THttpServer::RegisterCommand, variable should be global?
+// Probably, make Monitor class as ROOT object class is solution.
+// I have no time to do (Making dictionary and library, and link) now.
+// And the first click make nothing.  After second click, working well.
+// Need to check
+Bool_t fResetFlag;
+
 Monitor::Monitor(RTC::Manager* manager)
   : DAQMW::DaqComponentBase(manager),
   m_InPort("monitor_in",   m_in_data),
@@ -103,6 +112,10 @@ Monitor::Monitor(RTC::Manager* manager)
   gStyle->SetOptFit(1111);
   fServ.reset(new THttpServer("http:8080?monitoring=5000;rw;noglobal"));
 
+  fResetFlag = kFALSE;
+  fServ->RegisterCommand("/ResetHists", "fResetFlag=kTRUE", "button;rootsys/icons/refresh.png");
+  // fServ->Hide("/Resethists");
+  
   for(auto iBrd = 0; iBrd < kgBrds; iBrd++){
     TString regDirectory = Form("/Brd%02d", iBrd);
     for(auto iCh = 0; iCh < kgChs; iCh++){
@@ -303,6 +316,11 @@ int Monitor::daq_run()
   if (m_debug) {
     std::cerr << "*** Monitor::run" << std::endl;
   }
+  // std::cout <<"Flag: " << fResetFlag << std::endl;
+  if(fResetFlag) {
+    ResetHists();
+    fResetFlag = kFALSE;
+  }
   
   if(fDumpAPI != "") {
     // fDumpState = "";
@@ -316,7 +334,7 @@ int Monitor::daq_run()
   constexpr auto uploadInterval = 10;
   auto now = time(0);
   auto timeDiff = now - fLastCountTime;
-  if(timeDiff > uploadInterval) {
+  if(timeDiff >= uploadInterval) {
     fLastCountTime = now;
     UploadEventRate(timeDiff);
   }
@@ -349,14 +367,16 @@ int Monitor::daq_run()
 
 void Monitor::FillHist(int size)
 {
-  constexpr auto sizeMod = sizeof(PHAData::ModNumber);
-  constexpr auto sizeCh = sizeof(PHAData::ChNumber);
-  constexpr auto sizeTS = sizeof(PHAData::TimeStamp);
-  constexpr auto sizeEne = sizeof(PHAData::Energy);
-  constexpr auto sizeRL =  sizeof(PHAData::RecordLength);
-  constexpr auto sizeEle = sizeof(*(PHAData::Trace1));
+  constexpr auto sizeMod = sizeof(PSDData::ModNumber);
+  constexpr auto sizeCh = sizeof(PSDData::ChNumber);
+  constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(PSDData::FineTS);
+  constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
+  constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
+  constexpr auto sizeRL = sizeof(PSDData::RecordLength);
+
   
-  PHAData data(5000000); // 5000000 = 10ms, enough big for waveform???
+  PSDData data(5000000); // 5000000 = 10ms, enough big for waveform???
 
   constexpr int headerSize = 8;
   for(unsigned int i = headerSize; i < size;) {
@@ -370,21 +390,27 @@ void Monitor::FillHist(int size)
     memcpy(&data.TimeStamp, &m_in_data.data[i], sizeTS);
     i += sizeTS;
 
-    memcpy(&data.Energy, &m_in_data.data[i], sizeEne);
+    memcpy(&data.FineTS, &m_in_data.data[i], sizeFineTS);
+    i += sizeFineTS;
+
+    memcpy(&data.ChargeLong, &m_in_data.data[i], sizeEne);
     i += sizeEne;
+
+    memcpy(&data.ChargeShort, &m_in_data.data[i], sizeShort);
+    i += sizeShort;
 
     memcpy(&data.RecordLength, &m_in_data.data[i], sizeRL);
     i += sizeRL;
 
-    auto sizeTrace = sizeof(*(PHAData::Trace1)) * data.RecordLength;
+    auto sizeTrace = sizeof(*(PSDData::Trace1)) * data.RecordLength;
     memcpy(data.Trace1, &m_in_data.data[i], sizeTrace);
     i += sizeTrace;
 
     // Reject the overflow events
     if(data.ModNumber >= 0 && data.ModNumber < kgBrds &&
        data.ChNumber >= 0 && data.ChNumber < kgChs &&
-       data.Energy < (1 << 15)){
-      fHist[data.ModNumber][data.ChNumber]->Fill(data.Energy);
+       data.ChargeLong < (1 << 15)){
+      fHist[data.ModNumber][data.ChNumber]->Fill(data.ChargeLong);
       fEventCounter[data.ModNumber][data.ChNumber]++;
       
       for(auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
@@ -392,6 +418,15 @@ void Monitor::FillHist(int size)
     }
   }
   
+}
+
+void Monitor::ResetHists()
+{
+  for(auto &&brd: fHist) {
+    for(auto &&ch: brd) {
+      ch->Reset();
+    }
+  }
 }
 
 void Monitor::DumpHists()
@@ -428,34 +463,31 @@ void Monitor::UploadEventRate(int timeDuration)
     }
   }
 
-  nlohmann::json result;
-  nlohmann::json j_array(fEventCounter);
-  result["eveRate"] = j_array;
-  std::string postData = result.dump();
-  // std::cout << postData << std::endl;
-  
-  
-  if(fEveRateAPI != "") {
-    auto curl = curl_easy_init();
-    if(curl){
-      curl_easy_setopt(curl, CURLOPT_URL, fEveRateAPI.c_str());
-      curl_easy_setopt(curl, CURLOPT_POST, true);
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postData.c_str());
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(postData.c_str()));
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CallbackFunc);
-      std::string buf;
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
-      auto res = curl_easy_perform(curl);
-      curl_easy_cleanup(curl);
+  auto server = influxdb_cpp::server_info("192.168.147.150", 8086, "event_rate");
 
-      if (res != CURLE_OK) {
-	std::cerr << "Communication error in UploadEventRate: " << res << std::endl;
-	std::exit (1);
+  std::string resp;
+  auto now = time(nullptr);
+  constexpr int nMods = kgBrds;
+  constexpr int nChs = kgChs;
+  for(auto mod = 0; mod < nMods; mod++){
+    for(auto ch = 0; ch < nChs; ch++){
+      auto eventRate = fEventCounter[mod][ch];
+      
+      try{
+	influxdb_cpp::builder()
+	  .meas("ifin")
+	  .tag("ch", std::to_string(ch))
+	  .tag("mod", std::to_string(mod))
+	  .field("rate", eventRate)
+	  .timestamp(now * 1000000000)
+	  .post_http(server, &resp);
+      } catch (const std::exception &e) {
+	std::cout << e.what() <<"\n"<< resp << std::endl;
       }
+      
     }
   }
   
-  fLastCountTime = time(0);
   for(auto &&brd: fEventCounter) {
     for(auto &&ch: brd) {
       ch = 0;
