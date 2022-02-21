@@ -135,6 +135,8 @@ int ReaderPSD::daq_start()
 
   m_out_status = BUF_SUCCESS;
 
+  fDataContainer = TDataContainer();
+  
   // usleep(1000);
   fDigitizer->Start();
 
@@ -207,7 +209,9 @@ int ReaderPSD::read_data_from_detectors()
       index += sizeTS;
       received_data_size += sizeTS;
 
-      memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
+      double fineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
+      // std::cout << fineTS <<" "<< data->at(i)->TimeStamp <<" "<< data->at(i)->FineTS << std::endl;
+      memcpy(&hit[index], &(fineTS), sizeFineTS);
       index += sizeFineTS;
       received_data_size += sizeFineTS;
 
@@ -291,17 +295,16 @@ int ReaderPSD::daq_run()
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    read_data_from_detectors();
-    if (fDataContainer.GetSize() > 0) {
-      sentDataSize = set_data();  // set data to OutPort Buffer
-    } else {
-      return 0;
+    if(++fCounter > 50 || fDataContainer.GetSize() == 0){
+      fCounter = 0;
+      read_data_from_detectors();
     }
+    sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
   if (write_OutPort() < 0) {
     ;                                   // Timeout. do nothing.
-  } else if (sentDataSize > 0) {        // OutPort write successfully done
+  } else {        // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.
     inc_total_data_size(sentDataSize);  // increase total data byte size
   }

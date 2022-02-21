@@ -265,6 +265,7 @@ int ReaderPHA::read_data_from_detectors()
 	PSDData dummy;
 	
 	dummy.ModNumber = data->at(i)->ModNumber + fStartModNo;
+	
 	memcpy(&hit[index], &(dummy.ModNumber), sizeMod);
 	index += sizeMod;
 	received_data_size += sizeMod;
@@ -276,7 +277,9 @@ int ReaderPHA::read_data_from_detectors()
 	memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
 	index += sizeTS;
 	received_data_size += sizeTS;
-
+	
+	//double fineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
+	//std::cout << fineTS <<" "<< data->at(i)->TimeStamp <<" "<< data->at(i)->FineTS << std::endl;
 	dummy.FineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
 	memcpy(&hit[index], &(dummy.FineTS), sizeFineTS);
 	index += sizeFineTS;
@@ -365,16 +368,12 @@ int ReaderPHA::daq_run()
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
     read_data_from_detectors();
-    if (fDataContainer.GetSize() > 0) {
-      sentDataSize = set_data();  // set data to OutPort Buffer
-    } else {
-      return 0;
-    }
+    sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
   if (write_OutPort() < 0) {
     ;                                   // Timeout. do nothing.
-  } else if (sentDataSize > 0) {        // OutPort write successfully done
+  } else {        // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.
     inc_total_data_size(sentDataSize);  // increase total data byte size
   }

@@ -116,28 +116,22 @@ Monitor::Monitor(RTC::Manager* manager)
   fServ->RegisterCommand("/ResetHists", "fResetFlag=kTRUE", "button;rootsys/icons/refresh.png");
   // fServ->Hide("/Resethists");
   
-  for(auto iBrd = 0; iBrd < kgBrds; iBrd++){
-    TString regDirectory = Form("/Brd%02d", iBrd);
-    for(auto iCh = 0; iCh < kgChs; iCh++){
-      TString histName = Form("hist%02d_%02d", iBrd, iCh);
-      TString histTitle = Form("Brd%02d ch%02d", iBrd, iCh);
-      fHist[iBrd][iCh].reset(new TH1D(histName, histTitle, 30000, 0.5, 30000.5));
-
-      TString grName = Form("signal%02d_%02d", iBrd, iCh);
-      fSignal[iBrd][iCh].reset(new TGraph());
-      fSignal[iBrd][iCh]->SetNameTitle(grName, histTitle);
-      fSignal[iBrd][iCh]->SetMinimum(0);
-      fSignal[iBrd][iCh]->SetMaximum(18000);
-      
-      fServ->Register(regDirectory, fHist[iBrd][iCh].get());
-      fServ->Register(regDirectory, fSignal[iBrd][iCh].get());
-    }
-  }
-
   fCounter = 0;
   fDumpAPI = "";
   fDumpState = "";
-  fEveRateAPI = "";
+  fEveRateAPI = "127.0.0.1";
+
+  fCalibrationFile = "";
+
+  fBinWidth = 1.;
+
+  for(auto iBrd = 0; iBrd < kgMods; iBrd++) {
+    for(auto iCh = 0; iCh < kgChs; iCh++) {
+      TString fncName = Form("fnc%02d_%02d", iBrd, iCh);
+      fCalFnc[iBrd][iCh].reset(new TF1(fncName, "pol1"));
+      fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
+    }
+  }
 }
 
 Monitor::~Monitor()
@@ -175,9 +169,6 @@ int Monitor::daq_configure()
   paramList = m_daq_service0.getCompParams();
   parse_params(paramList);
 
-   
-  // fServ->Register("/", fHistRaw.get());
-
   gStyle->SetOptStat(1111);
   gStyle->SetOptFit(1111);
 
@@ -191,17 +182,125 @@ int Monitor::daq_configure()
     curl_easy_setopt(fCurl, CURLOPT_WRITEFUNCTION, CallbackFunc);
     curl_easy_setopt(fCurl, CURLOPT_WRITEDATA, &fDumpState);
   }
-  
-  // Using name of histogram "hist", NOT the variable "fHist"
-  // fServ->RegisterCommand("/Reset","/hist/->Reset()", "button;rootsys/icons/ed_delete.png");
-  // fServ->RegisterCommand("/ResetRaw","/raw/->Reset()", "button;rootsys/icons/ed_delete.png");
 
+  if(fCalibrationFile == "") {
+    for(auto iBrd = 0; iBrd < kgMods; iBrd++) {
+      for(auto iCh = 0; iCh < kgChs; iCh++) {
+	TString fncName = Form("fnc%02d_%02d", iBrd, iCh);
+	fCalFnc[iBrd][iCh].reset(new TF1(fncName, "pol1"));
+	fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
+      }
+    }
+  } else {
+    std::ifstream fin(fCalibrationFile);
+
+    int mod, ch;
+    double p0, p1;
+
+    if(fin.is_open()){
+      while(true) {
+	fin >> mod >> ch >> p0 >> p1;
+	if(fin.eof()) break;
+      
+	std::cout << mod <<" "<< ch <<" "<< p0 <<" "<< p1 << std::endl;
+	if(mod >= 0 && mod < kgMods &&
+	   ch >= 0 && ch < kgChs) {
+	  TString fncName = Form("fnc%02d_%02d", mod, ch);
+	  fCalFnc[mod][ch].reset(new TF1(fncName, "pol1"));
+	  fCalFnc[mod][ch]->SetParameters(p0, p1);
+	}
+      }
+    }
+  
+    fin.close();
+  }
+  
+  for(auto iBrd = 0; iBrd < kgMods; iBrd++){
+    for(auto iCh = 0; iCh < kgChs; iCh++){
+      TString histName = Form("hist%02d_%02d", iBrd, iCh);
+      TString histTitle = Form("Brd%02d ch%02d", iBrd, iCh);
+      
+      const double minBinWidth = fCalFnc[iBrd][iCh]->GetParameter(1);
+      const double binWidth = (int(fBinWidth / minBinWidth) + 1) * minBinWidth; // in keV
+      const double nBins = int(30000 / binWidth) + 1;
+      const double min = minBinWidth / 2. + fCalFnc[iBrd][iCh]->GetParameter(0);
+      const double max = min + nBins * binWidth;
+      fHist[iBrd][iCh].reset(new TH1D(histName, histTitle, nBins, min, max));
+      fHist[iBrd][iCh]->SetXTitle("[keV]");
+
+      histName = Form("ADC%02d_%02d", iBrd, iCh);
+      fHistADC[iBrd][iCh].reset(new TH1D(histName, histTitle, 30000, 0.5, 30000.5));
+      fHistADC[iBrd][iCh]->SetXTitle("ADC channel");
+      
+      TString grName = Form("signal%02d_%02d", iBrd, iCh);
+      fSignal[iBrd][iCh].reset(new TGraph());
+      fSignal[iBrd][iCh]->SetNameTitle(grName, histTitle);
+      fSignal[iBrd][iCh]->SetMinimum(0);
+      fSignal[iBrd][iCh]->SetMaximum(18000);
+    }
+  }
+  RegisterHists();
+  
   return 0;
+}
+
+void Monitor::RegisterHists()
+{
+  RegisterDetectors(fSignalListFile, "/CalibratedSignal", "/RawSignal");
+  RegisterDetectors(fBGOListFile, "/CalibratedBGO", "/RawBGO");
+    
+  for(auto iBrd = 0; iBrd < kgMods; iBrd++){
+    TString regDirectory = Form("/Brd%02d", iBrd);
+    for(auto iCh = 0; iCh < kgChs; iCh++){
+      fServ->Register(regDirectory, fHist[iBrd][iCh].get());
+      fServ->Register(regDirectory, fHistADC[iBrd][iCh].get());
+      // fServ->Register(regDirectory, fSignal[iBrd][iCh].get());
+    }
+  }
+}
+
+void Monitor::RegisterDetectors(std::string fileName, std::string calDirName, std::string rawDirName)
+{
+  if(fileName != "") {
+    std::ifstream fin(fileName);
+    if(fin.is_open()) {
+      unsigned int mod, ch;
+      std::string detName;
+
+      TString calDirectory = calDirName;
+      TString rawDirectory = rawDirName;
+      
+      while(true) {
+	fin >> mod >> ch >> detName;
+	if(fin.eof()) break;
+
+	std::cout << mod <<" "<< ch <<" "<< detName << std::endl;
+	
+	if(mod < 0 || mod >= kgMods || ch < 0 || ch >= kgChs) {
+	  std::cerr << "Config file: " << fileName << " indicates unavailable ch or mod.\n"
+		    << "Check it again!" << std::endl;
+	} else {
+	std::string title = fHist[mod][ch]->GetTitle();
+	title = detName + ": " + title;
+	fHist[mod][ch]->SetTitle(title.c_str());
+
+	title = fHistADC[mod][ch]->GetTitle();
+	title = detName + ": " + title;
+	fHistADC[mod][ch]->SetTitle(title.c_str());
+
+	fServ->Register(calDirectory, fHist[mod][ch].get());
+	fServ->Register(rawDirectory, fHistADC[mod][ch].get());
+	}
+      }
+      fin.close();      
+    }
+  } else {
+    std::cerr << "No such the file: " << fileName << std::endl;
+  }
 }
 
 int Monitor::parse_params(::NVList* list)
 {
-
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
@@ -216,7 +315,17 @@ int Monitor::parse_params(::NVList* list)
       fDumpAPI = svalue;
     } else if (sname == "EveRateAPI") {
       fEveRateAPI = svalue;
+    } else if (sname == "Calibration") {
+      fCalibrationFile = svalue;
+    } else if (sname == "SignalList") {
+      fSignalListFile = svalue;
+    } else if (sname == "BGOList") {
+      fBGOListFile = svalue;
+    } else if (sname == "BinWidth") {
+      fBinWidth = std::stod(svalue);
+      if(fBinWidth <= 0.) fBinWidth = 1.;
     }
+
   }
    
   return 0;
@@ -240,11 +349,8 @@ int Monitor::daq_start()
       ch = 0;
     }
   }
-  for(auto &&histVec: fHist){
-    for(auto &&hist: histVec){
-      hist->Reset();
-    }
-  }
+
+  ResetHists();
     
   return 0;
 }
@@ -407,10 +513,12 @@ void Monitor::FillHist(int size)
     i += sizeTrace;
 
     // Reject the overflow events
-    if(data.ModNumber >= 0 && data.ModNumber < kgBrds &&
+    if(data.ModNumber >= 0 && data.ModNumber < kgMods &&
        data.ChNumber >= 0 && data.ChNumber < kgChs &&
        data.ChargeLong < (1 << 15)){
-      fHist[data.ModNumber][data.ChNumber]->Fill(data.ChargeLong);
+      auto ene = fCalFnc[data.ModNumber][data.ChNumber]->Eval(data.ChargeLong);
+      fHist[data.ModNumber][data.ChNumber]->Fill(ene);
+      fHistADC[data.ModNumber][data.ChNumber]->Fill(data.ChargeLong);
       fEventCounter[data.ModNumber][data.ChNumber]++;
       
       for(auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
@@ -427,6 +535,11 @@ void Monitor::ResetHists()
       ch->Reset();
     }
   }
+  for(auto &&brd: fHistADC) {
+    for(auto &&ch: brd) {
+      ch->Reset();
+    }
+  }
 }
 
 void Monitor::DumpHists()
@@ -437,7 +550,7 @@ void Monitor::DumpHists()
   std::string dirName = "/tmp/daqmw/run" + std::to_string(runNo) + "_" + std::to_string(now);
   mkdir(dirName.c_str(), 0777);
 
-  for(auto iBrd = 0; iBrd < kgBrds; iBrd++) {
+  for(auto iBrd = 0; iBrd < kgMods; iBrd++) {
     for(auto iCh = 0; iCh < kgChs; iCh++) {
       auto fileName = dirName + "/" + Form("Brd%02dCh%02d.txt", iBrd, iCh);
       std::cout << fileName << std::endl;
@@ -463,11 +576,11 @@ void Monitor::UploadEventRate(int timeDuration)
     }
   }
 
-  auto server = influxdb_cpp::server_info("192.168.147.150", 8086, "event_rate");
+  auto server = influxdb_cpp::server_info(fEveRateAPI, 8086, "event_rate");
 
   std::string resp;
   auto now = time(nullptr);
-  constexpr int nMods = kgBrds;
+  constexpr int nMods = kgMods;
   constexpr int nChs = kgChs;
   for(auto mod = 0; mod < nMods; mod++){
     for(auto ch = 0; ch < nChs; ch++){

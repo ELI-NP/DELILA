@@ -13,6 +13,7 @@
 #include <memory>
 #include <array>
 #include <curl/curl.h>
+#include <string>
 
 #include <TF1.h>
 #include <TH1.h>
@@ -76,18 +77,30 @@ private:
   void FillHist(int size);
   long fCounter;
 
-  static constexpr int kgBrds = 8;
+  static constexpr int kgMods = 8;
   static constexpr int kgChs = 16;
-  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHist;
-  std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgBrds> fSignal;
+  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHist;
+  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHistADC;
+  std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgMods> fSignal;
   std::unique_ptr<THttpServer> fServ;
 
+  void RegisterHists();
+  void RegisterDetectors(std::string fileName, std::string calDirName, std::string rawDirName);
+  std::string fSignalListFile;
+  std::string fBGOListFile;
+  
   // Event rate uploading
   void UploadEventRate(int timeDuration);
-  std::array<std::array<int, kgChs>, kgBrds> fEventCounter;
+  std::array<std::array<int, kgChs>, kgMods> fEventCounter;
   long fLastCountTime;
   std::string fEveRateAPI;
-  
+
+  // Calibration
+  void ReadPar();
+  std::string fCalibrationFile;
+  std::array<std::array<std::array<double, 2> , kgChs>, kgMods> fCalPar;
+  std::array<std::array<std::unique_ptr<TF1>, kgChs>, kgMods> fCalFnc;
+  double fBinWidth;
   
   // ASCII Dump
   void DumpHists();
@@ -98,7 +111,7 @@ private:
 
   // Reset Histograms
   void ResetHists();
-  
+
 };
 
 

@@ -144,6 +144,9 @@ int Recorder::parse_params(::NVList* list)
 
     if(sname == "OutputDir") {
       fOutputDir = svalue;
+    } else if (sname == "SaveInterval") {
+      auto min = std::stoi(svalue);
+      fSaveInterval = min * 60;
     }
   }
 
@@ -332,8 +335,6 @@ int Recorder::FillData(unsigned int dataSize)
       i += sizeTrace;
     }
 
-    data.FineTS = 1000 * data.TimeStamp + data.FineTS;
-    
     fpDataVec->push_back(data);
     nHits++;
   }

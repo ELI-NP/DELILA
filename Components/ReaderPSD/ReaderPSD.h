@@ -70,7 +70,8 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   std::deque<PSDData_t> fQue;
   std::string fConfigFile;
   int fStartModNo = 0;
-
+  unsigned int fCounter = 0;
+  
   TDataContainer fDataContainer;
 };
 
