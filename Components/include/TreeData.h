@@ -6,8 +6,8 @@
 #include <CAENDigitizerType.h>
 
 class TreeData
-{  // no getter setter.  using public member variables.
- public:
+{ // no getter setter.  using public member variables.
+public:
   TreeData(){};
 
   TreeData(uint32_t nSamples)
@@ -34,9 +34,7 @@ class TreeData
   std::vector<uint8_t> DTrace1;
   std::vector<uint8_t> DTrace2;
 
-  static const uint16_t OneHitSize = sizeof(Mod) + sizeof(Ch)
-    + sizeof(TimeStamp) + sizeof(FineTS)
-    + sizeof(ChargeLong) + sizeof(ChargeShort) + sizeof(RecordLength);
+  static const uint16_t OneHitSize = sizeof(Mod) + sizeof(Ch) + sizeof(TimeStamp) + sizeof(FineTS) + sizeof(ChargeLong) + sizeof(ChargeShort) + sizeof(RecordLength);
 };
 typedef TreeData TreeData_t;
 

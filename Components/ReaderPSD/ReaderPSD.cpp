@@ -63,7 +63,8 @@ ReaderPSD::~ReaderPSD() {}
 
 RTC::ReturnCode_t ReaderPSD::onInitialize()
 {
-  if (m_debug) {
+  if (m_debug)
+  {
     std::cerr << "ReaderPSD::onInitialize()" << std::endl;
   }
 
@@ -102,16 +103,20 @@ int ReaderPSD::parse_params(::NVList *list)
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
-  for (int i = 0; i < len; i += 2) {
+  for (int i = 0; i < len; i += 2)
+  {
     std::string sname = (std::string)(*list)[i].value;
     std::string svalue = (std::string)(*list)[i + 1].value;
 
     std::cerr << "sname: " << sname << "  ";
     std::cerr << "value: " << svalue << std::endl;
 
-    if (sname == "ConfigFile") {
+    if (sname == "ConfigFile")
+    {
       fConfigFile = svalue;
-    } else if (sname == "StartModNo") {
+    }
+    else if (sname == "StartModNo")
+    {
       fStartModNo = std::stoi(svalue);
     }
   }
@@ -136,7 +141,7 @@ int ReaderPSD::daq_start()
   m_out_status = BUF_SUCCESS;
 
   fDataContainer = TDataContainer();
-  
+
   // usleep(1000);
   fDigitizer->Start();
 
@@ -171,7 +176,7 @@ int ReaderPSD::read_data_from_detectors()
   int received_data_size = 0;
   /// write your logic here
 
-  constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
+  constexpr auto maxSize = 2000000; // < 2MB(2 * 1024 * 1024)
 
   constexpr auto sizeMod = sizeof(PSDData::ModNumber);
   constexpr auto sizeCh = sizeof(PSDData::ChNumber);
@@ -184,43 +189,47 @@ int ReaderPSD::read_data_from_detectors()
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
 
-  if (data->size() > 0) {
+  if (data->size() > 0)
+  {
     const auto nData = data->size();
 
-    for (auto i = 0; i < nData; i++) {
+    for (auto i = 0; i < nData; i++)
+    {
       const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
-        (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
-      
+          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
+          (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+
       std::vector<char> hit;
       hit.resize(oneHitSize);
       auto index = 0;
-      
+
       unsigned char mod = data->at(i)->ModNumber + fStartModNo;
       memcpy(&hit[index], &(mod), sizeMod);
       index += sizeMod;
       received_data_size += sizeMod;
-      
+
       memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
       index += sizeCh;
       received_data_size += sizeCh;
-      
+
       memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
       index += sizeTS;
       received_data_size += sizeTS;
 
-      memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
+      double fineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
+      // std::cout << fineTS <<" "<< data->at(i)->TimeStamp <<" "<< data->at(i)->FineTS << std::endl;
+      memcpy(&hit[index], &(fineTS), sizeFineTS);
       index += sizeFineTS;
       received_data_size += sizeFineTS;
 
       memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeEne);
       index += sizeEne;
       received_data_size += sizeEne;
-      
+
       memcpy(&hit[index], &(data->at(i)->ChargeShort), sizeShort);
       index += sizeShort;
       received_data_size += sizeShort;
-      
+
       memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
       index += sizeRL;
       received_data_size += sizeRL;
@@ -248,7 +257,7 @@ int ReaderPSD::set_data()
   set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
-  ///set OutPort buffer length
+  /// set OutPort buffer length
   m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
@@ -264,16 +273,21 @@ int ReaderPSD::write_OutPort()
   bool ret = m_OutPort.write();
 
   //////////////////// check write status /////////////////////
-  if (ret == false) {  // TIMEOUT or FATAL
+  if (ret == false)
+  { // TIMEOUT or FATAL
     m_out_status = check_outPort_status(m_OutPort);
-    if (m_out_status == BUF_FATAL) {  // Fatal error
+    if (m_out_status == BUF_FATAL)
+    { // Fatal error
       fatal_error_report(OUTPORT_ERROR);
     }
-    if (m_out_status == BUF_TIMEOUT) {  // Timeout
+    if (m_out_status == BUF_TIMEOUT)
+    { // Timeout
       return -1;
     }
-  } else {
-    m_out_status = BUF_SUCCESS;  // successfully done
+  }
+  else
+  {
+    m_out_status = BUF_SUCCESS; // successfully done
   }
 
   return 0;
@@ -281,45 +295,48 @@ int ReaderPSD::write_OutPort()
 
 int ReaderPSD::daq_run()
 {
-  if (m_debug) {
+  if (m_debug)
+  {
     std::cerr << "*** ReaderPSD::run" << std::endl;
   }
 
-  if (check_trans_lock()) {  // check if stop command has come
-    set_trans_unlock();      // transit to CONFIGURED state
+  if (check_trans_lock())
+  {                     // check if stop command has come
+    set_trans_unlock(); // transit to CONFIGURED state
     return 0;
   }
 
   int sentDataSize = 0;
   if (m_out_status ==
-      BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if(++fCounter > 50 || fDataContainer.GetSize() == 0){
+      BUF_SUCCESS)
+  { // previous OutPort.write() successfully done
+    if (++fCounter > 50 || fDataContainer.GetSize() == 0)
+    {
       fCounter = 0;
       read_data_from_detectors();
     }
-    // std::cout << fDataContainer.GetSize() << std::endl;
-    if (fDataContainer.GetSize() > 0) {
-      sentDataSize = set_data();  // set data to OutPort Buffer
-    } else {
-      return 0;
-    }
+    sentDataSize = set_data(); // set data to OutPort Buffer
   }
 
-  if (write_OutPort() < 0) {
-    ;                                   // Timeout. do nothing.
-  } else if (sentDataSize > 0) {        // OutPort write successfully done
-    inc_sequence_num();                 // increase sequence num.
-    inc_total_data_size(sentDataSize);  // increase total data byte size
+  if (write_OutPort() < 0)
+  {
+    ; // Timeout. do nothing.
+  }
+  else
+  {                                    // OutPort write successfully done
+    inc_sequence_num();                // increase sequence num.
+    inc_total_data_size(sentDataSize); // increase total data byte size
   }
 
   return 0;
 }
 
-extern "C" {
-void ReaderPSDInit(RTC::Manager *manager)
+extern "C"
 {
-  RTC::Properties profile(reader_spec);
-  manager->registerFactory(profile, RTC::Create<ReaderPSD>,
-                           RTC::Delete<ReaderPSD>);
-}
+  void ReaderPSDInit(RTC::Manager *manager)
+  {
+    RTC::Properties profile(reader_spec);
+    manager->registerFactory(profile, RTC::Create<ReaderPSD>,
+                             RTC::Delete<ReaderPSD>);
+  }
 };

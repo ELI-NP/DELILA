@@ -80,7 +80,8 @@ ReaderPHA::~ReaderPHA() {}
 
 RTC::ReturnCode_t ReaderPHA::onInitialize()
 {
-  if (m_debug) {
+  if (m_debug)
+  {
     std::cerr << "ReaderPHA::onInitialize()" << std::endl;
   }
 
@@ -119,18 +120,24 @@ int ReaderPHA::parse_params(::NVList *list)
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
-  for (int i = 0; i < len; i += 2) {
+  for (int i = 0; i < len; i += 2)
+  {
     std::string sname = (std::string)(*list)[i].value;
     std::string svalue = (std::string)(*list)[i + 1].value;
 
     std::cerr << "sname: " << sname << "  ";
     std::cerr << "value: " << svalue << std::endl;
 
-    if (sname == "ConfigFile") {
+    if (sname == "ConfigFile")
+    {
       fConfigFile = svalue;
-    } else if (sname == "StartModNo") {
+    }
+    else if (sname == "StartModNo")
+    {
       fStartModNo = std::stoi(svalue);
-    } else if (sname == "ParameterAPI") {
+    }
+    else if (sname == "ParameterAPI")
+    {
       fParameterAPI = svalue;
     }
   }
@@ -153,7 +160,8 @@ int ReaderPHA::daq_start()
 
   m_out_status = BUF_SUCCESS;
 
-  if (fParameterAPI != "") {
+  if (fParameterAPI != "")
+  {
     auto curl = curl_easy_init();
     std::string buf;
     curl_easy_setopt(curl, CURLOPT_URL, fParameterAPI.c_str());
@@ -163,14 +171,17 @@ int ReaderPHA::daq_start()
     curl_easy_cleanup(curl);
 
     // code=404 is only from my web server.  For others, using 404 as key is crazy...
-    if (ret == CURLE_OK && (buf.find("code=404") == std::string::npos)) {
+    if (ret == CURLE_OK && (buf.find("code=404") == std::string::npos))
+    {
       auto json = nlohmann::json::parse(buf);
       auto par = fDigitizer->GetParameters();
       const auto nBrds = par.NumBrd;
       const auto nChs = par.NumPhyCh;
 
-      for (auto iBrd = 0 + fStartModNo; iBrd < nBrds + fStartModNo; iBrd++) {
-        for (auto iCh = 0; iCh < nChs; iCh++) {
+      for (auto iBrd = 0 + fStartModNo; iBrd < nBrds + fStartModNo; iBrd++)
+      {
+        for (auto iCh = 0; iCh < nChs; iCh++)
+        {
           par.TrapPoleZero[iBrd][iCh] =
               json["PHAPar"][iBrd]["trapPoleZero"][iCh];
           par.TrapFlatTop[iBrd][iCh] = json["PHAPar"][iBrd]["trapFlatTop"][iCh];
@@ -236,7 +247,7 @@ int ReaderPHA::read_data_from_detectors()
   int received_data_size = 0;
   /// write your logic here
 
-  constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
+  constexpr auto maxSize = 2000000; // < 2MB(2 * 1024 * 1024)
 
   constexpr auto sizeMod = sizeof(PSDData::ModNumber);
   constexpr auto sizeCh = sizeof(PSDData::ChNumber);
@@ -245,64 +256,67 @@ int ReaderPHA::read_data_from_detectors()
   constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
   constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
   constexpr auto sizeRL = sizeof(PSDData::RecordLength);
-  
+
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
   // std::cout << data->size() << std::endl;
-  if (data->size() > 0) {
+  if (data->size() > 0)
+  {
     const auto nData = data->size();
 
-    for (auto i = 0; i < nData; i++) {
+    for (auto i = 0; i < nData; i++)
+    {
       const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
-        (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
+          (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
 
-      if (data->at(i)->Energy > 0 && data->at(i)->Energy < 32767) {
+      if (data->at(i)->Energy > 0 && data->at(i)->Energy < 32767)
+      {
         auto index = 0;
         std::vector<char> hit;
         hit.resize(oneHitSize);
 
-	PSDData dummy;
-	
-	dummy.ModNumber = data->at(i)->ModNumber + fStartModNo;
-	
-	memcpy(&hit[index], &(dummy.ModNumber), sizeMod);
-	index += sizeMod;
-	received_data_size += sizeMod;
-      
-	memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
-	index += sizeCh;
-	received_data_size += sizeCh;
-	
-	memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
-	index += sizeTS;
-	received_data_size += sizeTS;
+        PSDData dummy;
 
-	dummy.FineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
-	memcpy(&hit[index], &(dummy.FineTS), sizeFineTS);
-	index += sizeFineTS;
-	received_data_size += sizeFineTS;
-	
-	memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
-	index += sizeEne;
-	received_data_size += sizeEne;
+        dummy.ModNumber = data->at(i)->ModNumber + fStartModNo;
 
-	dummy.ChargeShort = 0;
-	memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
-	index += sizeShort;
-	received_data_size += sizeShort;
-	
-	memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
-	index += sizeRL;
-	received_data_size += sizeRL;
-	
-	const auto sizeTrace =
-          sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength;
-	memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
-	index += sizeTrace;
-	received_data_size += sizeTrace;
-	
-	fDataContainer.AddData(hit);
+        memcpy(&hit[index], &(dummy.ModNumber), sizeMod);
+        index += sizeMod;
+        received_data_size += sizeMod;
+
+        memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
+        index += sizeCh;
+        received_data_size += sizeCh;
+
+        memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
+        index += sizeTS;
+        received_data_size += sizeTS;
+
+        dummy.FineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
+        memcpy(&hit[index], &(dummy.FineTS), sizeFineTS);
+        index += sizeFineTS;
+        received_data_size += sizeFineTS;
+
+        memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
+        index += sizeEne;
+        received_data_size += sizeEne;
+
+        dummy.ChargeShort = 0;
+        memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
+        index += sizeShort;
+        received_data_size += sizeShort;
+
+        memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
+        index += sizeRL;
+        received_data_size += sizeRL;
+
+        const auto sizeTrace =
+            sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength;
+        memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
+        index += sizeTrace;
+        received_data_size += sizeTrace;
+
+        fDataContainer.AddData(hit);
       }
     }
   }
@@ -320,7 +334,7 @@ int ReaderPHA::set_data()
   set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
-  ///set OutPort buffer length
+  /// set OutPort buffer length
   m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
@@ -336,16 +350,21 @@ int ReaderPHA::write_OutPort()
   bool ret = m_OutPort.write();
 
   //////////////////// check write status /////////////////////
-  if (ret == false) {  // TIMEOUT or FATAL
+  if (ret == false)
+  { // TIMEOUT or FATAL
     m_out_status = check_outPort_status(m_OutPort);
-    if (m_out_status == BUF_FATAL) {  // Fatal error
+    if (m_out_status == BUF_FATAL)
+    { // Fatal error
       fatal_error_report(OUTPORT_ERROR);
     }
-    if (m_out_status == BUF_TIMEOUT) {  // Timeout
+    if (m_out_status == BUF_TIMEOUT)
+    { // Timeout
       return -1;
     }
-  } else {
-    m_out_status = BUF_SUCCESS;  // successfully done
+  }
+  else
+  {
+    m_out_status = BUF_SUCCESS; // successfully done
   }
 
   return 0;
@@ -353,41 +372,44 @@ int ReaderPHA::write_OutPort()
 
 int ReaderPHA::daq_run()
 {
-  if (m_debug) {
+  if (m_debug)
+  {
     std::cerr << "*** ReaderPHA::run" << std::endl;
   }
 
-  if (check_trans_lock()) {  // check if stop command has come
-    set_trans_unlock();      // transit to CONFIGURED state
+  if (check_trans_lock())
+  {                     // check if stop command has come
+    set_trans_unlock(); // transit to CONFIGURED state
     return 0;
   }
 
   int sentDataSize = 0;
   if (m_out_status ==
-      BUF_SUCCESS) {  // previous OutPort.write() successfully done
+      BUF_SUCCESS)
+  { // previous OutPort.write() successfully done
     read_data_from_detectors();
-    if (fDataContainer.GetSize() > 0) {
-      sentDataSize = set_data();  // set data to OutPort Buffer
-    } else {
-      return 0;
-    }
+    sentDataSize = set_data(); // set data to OutPort Buffer
   }
 
-  if (write_OutPort() < 0) {
-    ;                                   // Timeout. do nothing.
-  } else if (sentDataSize > 0) {        // OutPort write successfully done
-    inc_sequence_num();                 // increase sequence num.
-    inc_total_data_size(sentDataSize);  // increase total data byte size
+  if (write_OutPort() < 0)
+  {
+    ; // Timeout. do nothing.
+  }
+  else
+  {                                    // OutPort write successfully done
+    inc_sequence_num();                // increase sequence num.
+    inc_total_data_size(sentDataSize); // increase total data byte size
   }
 
   return 0;
 }
 
-extern "C" {
-void ReaderPHAInit(RTC::Manager *manager)
+extern "C"
 {
-  RTC::Properties profile(reader_spec);
-  manager->registerFactory(profile, RTC::Create<ReaderPHA>,
-                           RTC::Delete<ReaderPHA>);
-}
+  void ReaderPHAInit(RTC::Manager *manager)
+  {
+    RTC::Properties profile(reader_spec);
+    manager->registerFactory(profile, RTC::Create<ReaderPHA>,
+                             RTC::Delete<ReaderPHA>);
+  }
 };

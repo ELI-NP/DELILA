@@ -1,6 +1,6 @@
 // -*- C++ -*-
 /*!
- * @file 
+ * @file
  * @brief
  * @date
  * @author
@@ -30,16 +30,14 @@
 
 using namespace RTC;
 
-
 // Number of peaks for TSpectrum
 // constexpr int knPeaks = 8;
 
-
 class Monitor
-  : public DAQMW::DaqComponentBase
+    : public DAQMW::DaqComponentBase
 {
 public:
-  Monitor(RTC::Manager* manager);
+  Monitor(RTC::Manager *manager);
   ~Monitor();
 
   // The initialize action (on CREATED->ALIVE transition)
@@ -51,8 +49,8 @@ public:
   virtual RTC::ReturnCode_t onExecute(RTC::UniqueId ec_id);
 
 private:
-  TimedOctetSeq          m_in_data;
-  InPort<TimedOctetSeq>  m_InPort;
+  TimedOctetSeq m_in_data;
+  InPort<TimedOctetSeq> m_InPort;
 
 private:
   int daq_dummy();
@@ -64,11 +62,11 @@ private:
   int daq_pause();
   int daq_resume();
 
-  int parse_params(::NVList* list);
+  int parse_params(::NVList *list);
   int reset_InPort();
 
   unsigned int read_InPort();
-  //int online_analyze();
+  // int online_analyze();
 
   BufferStatus m_in_status;
   bool m_debug;
@@ -77,25 +75,31 @@ private:
   void FillHist(int size);
   long fCounter;
 
-  static constexpr int kgBrds = 8;
+  static constexpr int kgMods = 8;
   static constexpr int kgChs = 16;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHist;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHistADC;
   std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgBrds> fSignal;
   std::unique_ptr<THttpServer> fServ;
 
+  void RegisterHists();
+  void RegisterDetectors(std::string fileName, std::string calDirName, std::string rawDirName);
+  std::string fSignalListFile;
+  std::string fBGOListFile;
+
   // Event rate uploading
   void UploadEventRate(int timeDuration);
-  std::array<std::array<int, kgChs>, kgBrds> fEventCounter;
+  std::array<std::array<int, kgChs>, kgMods> fEventCounter;
   long fLastCountTime;
   std::string fEveRateAPI;
 
   // Calibration
   void ReadPar();
-  std::string fParFile;
-  std::array<std::array<std::array<double, 2> , kgChs>, kgBrds> fCalPar;
-  std::array<std::array<std::unique_ptr<TF1>, kgChs>, kgBrds> fCalFnc;
-  
+  std::string fCalibrationFile;
+  std::array<std::array<std::array<double, 2>, kgChs>, kgMods> fCalPar;
+  std::array<std::array<std::unique_ptr<TF1>, kgChs>, kgMods> fCalFnc;
+  double fBinWidth;
+
   // ASCII Dump
   void DumpHists();
   // std::unique_ptr<CURL> fCurl;
@@ -105,13 +109,11 @@ private:
 
   // Reset Histograms
   void ResetHists();
-  
 };
-
 
 extern "C"
 {
-  void MonitorInit(RTC::Manager* manager);
+  void MonitorInit(RTC::Manager *manager);
 };
 
 #endif // MONITOR_H
