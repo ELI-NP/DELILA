@@ -270,6 +270,11 @@ int Dispatcher::daq_run()
       std::cerr << "*** Dispatcher::run" << std::endl;
    }
 
+   // auto now = std::chrono::high_resolution_clock::now();
+   // auto diff =  std::chrono::duration_cast<std::chrono::nanoseconds>(now - fStart).count();
+   // std::cout << diff << std::endl;
+   // fStart = now;
+   
    if ((m_out1_status != BUF_TIMEOUT) && (m_out2_status != BUF_TIMEOUT)) {
       m_inport_recv_data_size = read_InPort();
 

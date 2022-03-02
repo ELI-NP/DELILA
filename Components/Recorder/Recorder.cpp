@@ -16,7 +16,7 @@
 #include <TFile.h>
 #include <Compression.h>
 
-#include "../../TDigiTES/include/TPHAData.hpp"
+#include "../../TDigiTES/include/TPSDData.hpp"
 
 #include "Recorder.h"
 
@@ -144,6 +144,9 @@ int Recorder::parse_params(::NVList* list)
 
     if(sname == "OutputDir") {
       fOutputDir = svalue;
+    } else if (sname == "SaveInterval") {
+      auto min = std::stoi(svalue);
+      fSaveInterval = min * 60;
     }
   }
 
@@ -225,6 +228,9 @@ unsigned int Recorder::read_InPort()
       if (check_trans_lock()) {     // Check if stop command has come.
 	set_trans_unlock();       // Transit to CONFIGURE state.
       }
+      if (m_debug) {
+	std::cerr << "BUF_TIMEOUT" << std::endl;
+      }
     }
     else if (m_in_status == BUF_FATAL) { // Fatal error
       fatal_error_report(INPORT_ERROR);
@@ -282,7 +288,7 @@ int Recorder::daq_run()
 
 void Recorder::ResetVec()
 {
-  fpDataVec.reset(new std::vector<TreeData>);
+  fpDataVec.reset(new std::vector<TreeData *>);
   fpDataVec->reserve(2 * fDataLimit / sizeof(TreeData));
 }
 
@@ -292,35 +298,43 @@ int Recorder::FillData(unsigned int dataSize)
   constexpr auto sizeMod = sizeof(TreeData::Mod);
   constexpr auto sizeCh = sizeof(TreeData::Ch);
   constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
-  constexpr auto sizeEne = sizeof(TreeData::Energy);
+  constexpr auto sizeFineTS = sizeof(TreeData::FineTS);
+  constexpr auto sizeChargeLong = sizeof(TreeData::ChargeLong);
+  constexpr auto sizeChargeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL =  sizeof(TreeData::RecordLength);
 
   constexpr unsigned int headerSize = 8;
   
   int nHits = 0;
   for(unsigned int i = headerSize; i < dataSize + headerSize;) {
-    TreeData data;
+    auto data = new TreeData();
 
     // The order of data should be the same as Reader
-    memcpy(&(data.Mod), &m_in_data.data[i], sizeMod);
+    memcpy(&(data->Mod), &m_in_data.data[i], sizeMod);
     i += sizeMod;
 
-    memcpy(&(data.Ch), &m_in_data.data[i], sizeCh);
+    memcpy(&(data->Ch), &m_in_data.data[i], sizeCh);
     i += sizeCh;
 
-    memcpy(&(data.TimeStamp), &m_in_data.data[i], sizeTS);
+    memcpy(&(data->TimeStamp), &m_in_data.data[i], sizeTS);
     i += sizeTS;
 
-    memcpy(&(data.Energy), &m_in_data.data[i], sizeEne);
-    i += sizeEne;
+    memcpy(&(data->FineTS), &m_in_data.data[i], sizeFineTS);
+    i += sizeFineTS;
 
-    memcpy(&(data.RecordLength), &m_in_data.data[i], sizeRL);
+    memcpy(&(data->ChargeLong), &m_in_data.data[i], sizeChargeLong);
+    i += sizeChargeLong;
+
+    memcpy(&(data->ChargeShort), &m_in_data.data[i], sizeChargeShort);
+    i += sizeChargeShort;
+
+    memcpy(&(data->RecordLength), &m_in_data.data[i], sizeRL);
     i += sizeRL;
 
-    if(data.RecordLength > 0){
-      auto sizeTrace = sizeof(*(PHAData::Trace1)) * data.RecordLength;
-      data.Trace1.resize(data.RecordLength);
-      memcpy(&data.Trace1[0], &m_in_data.data[i], sizeTrace);
+    if(data->RecordLength > 0){
+      auto sizeTrace = sizeof((TreeData::Trace1[0])) * data->RecordLength;
+      data->Trace1.resize(data->RecordLength);
+      memcpy(&data->Trace1[0], &m_in_data.data[i], sizeTrace);
       i += sizeTrace;
     }
 
@@ -354,32 +368,40 @@ void Recorder::MakeTree()
       tree->SetDirectory(nullptr); // we need to clearly set directory as nullptr here
       fMutex.unlock();
 
-      std::sort(dataVec->begin(), dataVec->end(), [](const TreeData &a, const TreeData &b){
-	  return a.TimeStamp < b.TimeStamp;
+      std::sort(dataVec->begin(), dataVec->end(), [](const TreeData *a, const TreeData *b){
+	  return a->FineTS < b->FineTS;
 	});
       
       UChar_t Mod, Ch;
       ULong64_t TimeStamp;
-      UShort_t Energy;
+      Double_t FineTS;
+      UShort_t ChargeLong;
+      UShort_t ChargeShort;
       UInt_t RecordLength;
       UShort_t Signal[100000]{0};
       tree->Branch("Mod", &Mod, "Mod/b");
       tree->Branch("Ch", &Ch, "Ch/b");
       tree->Branch("TimeStamp", &TimeStamp, "TimeStamp/l");
-      tree->Branch("Energy", &Energy, "Energy/s");
+      tree->Branch("FineTS", &FineTS, "Finets/D");
+      tree->Branch("ChargeLong", &ChargeLong, "ChargeLong/s");
+      tree->Branch("ChargeShort", &ChargeShort, "ChargeShort/s");
       tree->Branch("RecordLength", &RecordLength, "RecordLength/i");
       tree->Branch("Signal", Signal, "Signal[RecordLength]/s");
       
       for(auto iEve = 0; iEve < dataVec->size(); iEve++) {
-	Mod = dataVec->at(iEve).Mod;
-	Ch = dataVec->at(iEve).Ch;
-	TimeStamp = dataVec->at(iEve).TimeStamp;
-	Energy = dataVec->at(iEve).Energy;
-	RecordLength = dataVec->at(iEve).RecordLength;
+	Mod = dataVec->at(iEve)->Mod;
+	Ch = dataVec->at(iEve)->Ch;
+	TimeStamp = dataVec->at(iEve)->TimeStamp;
+	FineTS = dataVec->at(iEve)->FineTS;
+	ChargeLong = dataVec->at(iEve)->ChargeLong;
+	ChargeShort = dataVec->at(iEve)->ChargeShort;
+	RecordLength = dataVec->at(iEve)->RecordLength;
 	if(RecordLength > 0)
-	  std::copy(&dataVec->at(iEve).Trace1[0], &dataVec->at(iEve).Trace1[RecordLength], Signal);
+	  std::copy(&dataVec->at(iEve)->Trace1[0], &dataVec->at(iEve)->Trace1[RecordLength], Signal);
 	
 	tree->Fill();
+
+	delete dataVec->at(iEve);
       }
 
       fMutex.lock();

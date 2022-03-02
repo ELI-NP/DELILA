@@ -2,3 +2,8 @@
 *~
 *.o
 autogen
+*Comp
+omninames*
+rtc.conf
+.depend
+.confFilePath

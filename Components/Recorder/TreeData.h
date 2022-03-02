@@ -24,8 +24,9 @@ class TreeData
   unsigned char Mod;
   unsigned char Ch;
   uint64_t TimeStamp;
-  uint16_t FineTS;
-  uint16_t Energy;
+  double FineTS;
+  uint16_t ChargeLong;
+  uint16_t ChargeShort;
   uint32_t Extras;
   uint32_t RecordLength;
   std::vector<uint16_t> Trace1;

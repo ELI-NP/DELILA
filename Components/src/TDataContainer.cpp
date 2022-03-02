@@ -4,6 +4,7 @@
 #include "TDataContainer.hpp"
 
 TDataContainer::TDataContainer() { fMaxSize = 2000000; }
+TDataContainer::TDataContainer(unsigned int maxSize) { fMaxSize = maxSize; }
 
 TDataContainer::~TDataContainer() {}
 

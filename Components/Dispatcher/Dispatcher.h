@@ -10,6 +10,9 @@
 #ifndef DISPATCHER_H
 #define DISPATCHER_H
 
+#include <iostream>
+#include <chrono>
+
 #include "DaqComponentBase.h"
 
 using namespace RTC;
@@ -71,8 +74,10 @@ private:
 
     unsigned int m_inport_recv_data_size;
     bool m_debug;
-};
 
+  std::chrono::time_point<std::chrono::high_resolution_clock> fStart;
+  
+};
 
 extern "C"
 {

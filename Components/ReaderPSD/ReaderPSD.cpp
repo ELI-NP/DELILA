@@ -135,6 +135,8 @@ int ReaderPSD::daq_start()
 
   m_out_status = BUF_SUCCESS;
 
+  fDataContainer = TDataContainer();
+  
   // usleep(1000);
   fDigitizer->Start();
 
@@ -174,41 +176,51 @@ int ReaderPSD::read_data_from_detectors()
   constexpr auto sizeMod = sizeof(PSDData::ModNumber);
   constexpr auto sizeCh = sizeof(PSDData::ChNumber);
   constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(PSDData::FineTS);
   constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
+  constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
   constexpr auto sizeRL = sizeof(PSDData::RecordLength);
 
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
 
   if (data->size() > 0) {
-    const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeEne + sizeRL +
-        (sizeof(*(PSDData::Trace1)) * data->at(0)->RecordLength);
-
     const auto nData = data->size();
 
     for (auto i = 0; i < nData; i++) {
+      const auto oneHitSize =
+        sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
+        (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+      
       std::vector<char> hit;
       hit.resize(oneHitSize);
       auto index = 0;
-
+      
       unsigned char mod = data->at(i)->ModNumber + fStartModNo;
       memcpy(&hit[index], &(mod), sizeMod);
       index += sizeMod;
       received_data_size += sizeMod;
-
+      
       memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
       index += sizeCh;
       received_data_size += sizeCh;
-
+      
       memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
       index += sizeTS;
       received_data_size += sizeTS;
 
+      memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
+      index += sizeFineTS;
+      received_data_size += sizeFineTS;
+
       memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeEne);
       index += sizeEne;
       received_data_size += sizeEne;
-
+      
+      memcpy(&hit[index], &(data->at(i)->ChargeShort), sizeShort);
+      index += sizeShort;
+      received_data_size += sizeShort;
+      
       memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
       index += sizeRL;
       received_data_size += sizeRL;
@@ -281,7 +293,11 @@ int ReaderPSD::daq_run()
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    read_data_from_detectors();
+    if(++fCounter > 50 || fDataContainer.GetSize() == 0){
+      fCounter = 0;
+      read_data_from_detectors();
+    }
+    // std::cout << fDataContainer.GetSize() << std::endl;
     if (fDataContainer.GetSize() > 0) {
       sentDataSize = set_data();  // set data to OutPort Buffer
     } else {

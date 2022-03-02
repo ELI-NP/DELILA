@@ -47,7 +47,7 @@ Dispatcher::Dispatcher(RTC::Manager* manager)
    m_out1_timeout_counter(0),
    m_out2_timeout_counter(0),
    m_inport_recv_data_size(0),
-   m_debug(false)
+   m_debug(true)
 {
    // Registration: InPort/OutPort/Service
 
@@ -355,9 +355,9 @@ int Dispatcher::daq_run()
          return 0;
       }
       else {
-         //check_header_footer(m_in_data, m_inport_recv_data_size);
-         set_data_OutPort1(m_inport_recv_data_size);
-         set_data_OutPort2(m_inport_recv_data_size);
+	check_header_footer(m_in_data, m_inport_recv_data_size);
+	set_data_OutPort1(m_inport_recv_data_size);
+	set_data_OutPort2(m_inport_recv_data_size);
       }
    }
 
@@ -385,6 +385,10 @@ int Dispatcher::daq_run()
      inc_sequence_num();                    // increase sequence num.
       unsigned int event_data_size = get_event_size(m_inport_recv_data_size);
       inc_total_data_size(event_data_size);  // increase total data byte size
+      if(m_debug) {
+	std::cout << "total sent size: " << event_data_size
+		  << "\tSequence: " << get_sequence_num() << std::endl;
+      }
    }
 
    return 0;

@@ -13,6 +13,7 @@
 #include <memory>
 #include <array>
 #include <curl/curl.h>
+#include <string>
 
 #include <TF1.h>
 #include <TH1.h>
@@ -32,6 +33,7 @@ using namespace RTC;
 
 // Number of peaks for TSpectrum
 // constexpr int knPeaks = 8;
+
 
 class Monitor
   : public DAQMW::DaqComponentBase
@@ -78,6 +80,7 @@ private:
   static constexpr int kgBrds = 8;
   static constexpr int kgChs = 16;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHist;
+  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHistADC;
   std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgBrds> fSignal;
   std::unique_ptr<THttpServer> fServ;
 
@@ -86,7 +89,12 @@ private:
   std::array<std::array<int, kgChs>, kgBrds> fEventCounter;
   long fLastCountTime;
   std::string fEveRateAPI;
-  
+
+  // Calibration
+  void ReadPar();
+  std::string fParFile;
+  std::array<std::array<std::array<double, 2> , kgChs>, kgBrds> fCalPar;
+  std::array<std::array<std::unique_ptr<TF1>, kgChs>, kgBrds> fCalFnc;
   
   // ASCII Dump
   void DumpHists();
@@ -94,6 +102,9 @@ private:
   CURL *fCurl;
   std::string fDumpAPI;
   std::string fDumpState;
+
+  // Reset Histograms
+  void ResetHists();
   
 };
 
