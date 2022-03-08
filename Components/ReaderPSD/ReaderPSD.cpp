@@ -63,8 +63,7 @@ ReaderPSD::~ReaderPSD() {}
 
 RTC::ReturnCode_t ReaderPSD::onInitialize()
 {
-  if (m_debug)
-  {
+  if (m_debug) {
     std::cerr << "ReaderPSD::onInitialize()" << std::endl;
   }
 
@@ -93,6 +92,7 @@ int ReaderPSD::daq_configure()
   fDigitizer->OpenDigitizers();
   fDigitizer->InitDigitizers();
   fDigitizer->UseFineTS();
+  if (fFlagTrgCounter) fDigitizer->UseTrgCounter(fTrgCounterMod, fTrgCounterCh);
   fDigitizer->AllocateMemory();
 
   return 0;
@@ -103,21 +103,32 @@ int ReaderPSD::parse_params(::NVList *list)
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
-  for (int i = 0; i < len; i += 2)
-  {
+  for (int i = 0; i < len; i += 2) {
     std::string sname = (std::string)(*list)[i].value;
     std::string svalue = (std::string)(*list)[i + 1].value;
 
     std::cerr << "sname: " << sname << "  ";
     std::cerr << "value: " << svalue << std::endl;
 
-    if (sname == "ConfigFile")
-    {
+    if (sname == "ConfigFile") {
       fConfigFile = svalue;
-    }
-    else if (sname == "StartModNo")
-    {
+    } else if (sname == "StartModNo") {
       fStartModNo = std::stoi(svalue);
+    } else if (sname.find("mod") != std::string::npos &&
+               sname.find("ch") != std::string::npos) {
+      auto posMod = sname.find("mod");
+      auto posCh = sname.find("ch");
+      char modNumber[10];
+      sname.copy(modNumber, posCh - (posMod + 3), posMod + 3);
+      char chNumber[10];
+      sname.copy(chNumber, 3, posCh + 2);
+
+      fTrgCounterCh = atoi(chNumber);
+      fTrgCounterMod = atoi(modNumber);
+      std::cout << "Mod: " << fTrgCounterMod << " Ch: " << fTrgCounterCh
+                << " uses TrgCounter mode." << std::endl;
+
+      fFlagTrgCounter = true;
     }
   }
 
@@ -176,7 +187,7 @@ int ReaderPSD::read_data_from_detectors()
   int received_data_size = 0;
   /// write your logic here
 
-  constexpr auto maxSize = 2000000; // < 2MB(2 * 1024 * 1024)
+  constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
 
   constexpr auto sizeMod = sizeof(PSDData::ModNumber);
   constexpr auto sizeCh = sizeof(PSDData::ChNumber);
@@ -189,15 +200,13 @@ int ReaderPSD::read_data_from_detectors()
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
 
-  if (data->size() > 0)
-  {
+  if (data->size() > 0) {
     const auto nData = data->size();
 
-    for (auto i = 0; i < nData; i++)
-    {
+    for (auto i = 0; i < nData; i++) {
       const auto oneHitSize =
-          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
-          (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
+          sizeRL + (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
 
       std::vector<char> hit;
       hit.resize(oneHitSize);
@@ -271,21 +280,16 @@ int ReaderPSD::write_OutPort()
   bool ret = m_OutPort.write();
 
   //////////////////// check write status /////////////////////
-  if (ret == false)
-  { // TIMEOUT or FATAL
+  if (ret == false) {  // TIMEOUT or FATAL
     m_out_status = check_outPort_status(m_OutPort);
-    if (m_out_status == BUF_FATAL)
-    { // Fatal error
+    if (m_out_status == BUF_FATAL) {  // Fatal error
       fatal_error_report(OUTPORT_ERROR);
     }
-    if (m_out_status == BUF_TIMEOUT)
-    { // Timeout
+    if (m_out_status == BUF_TIMEOUT) {  // Timeout
       return -1;
     }
-  }
-  else
-  {
-    m_out_status = BUF_SUCCESS; // successfully done
+  } else {
+    m_out_status = BUF_SUCCESS;  // successfully done
   }
 
   return 0;
@@ -293,48 +297,40 @@ int ReaderPSD::write_OutPort()
 
 int ReaderPSD::daq_run()
 {
-  if (m_debug)
-  {
+  if (m_debug) {
     std::cerr << "*** ReaderPSD::run" << std::endl;
   }
 
-  if (check_trans_lock())
-  {                     // check if stop command has come
-    set_trans_unlock(); // transit to CONFIGURED state
+  if (check_trans_lock()) {  // check if stop command has come
+    set_trans_unlock();      // transit to CONFIGURED state
     return 0;
   }
 
   int sentDataSize = 0;
   if (m_out_status ==
-      BUF_SUCCESS)
-  { // previous OutPort.write() successfully done
-    if (++fCounter > 50 || fDataContainer.GetSize() == 0)
-    {
+      BUF_SUCCESS) {  // previous OutPort.write() successfully done
+    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
       fCounter = 0;
       read_data_from_detectors();
     }
-    sentDataSize = set_data(); // set data to OutPort Buffer
+    sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
-  if (write_OutPort() < 0)
-  {
-    ; // Timeout. do nothing.
-  }
-  else
-  {                                    // OutPort write successfully done
-    inc_sequence_num();                // increase sequence num.
-    inc_total_data_size(sentDataSize); // increase total data byte size
+  if (write_OutPort() < 0) {
+    ;                                   // Timeout. do nothing.
+  } else {                              // OutPort write successfully done
+    inc_sequence_num();                 // increase sequence num.
+    inc_total_data_size(sentDataSize);  // increase total data byte size
   }
 
   return 0;
 }
 
-extern "C"
+extern "C" {
+void ReaderPSDInit(RTC::Manager *manager)
 {
-  void ReaderPSDInit(RTC::Manager *manager)
-  {
-    RTC::Properties profile(reader_spec);
-    manager->registerFactory(profile, RTC::Create<ReaderPSD>,
-                             RTC::Delete<ReaderPSD>);
-  }
+  RTC::Properties profile(reader_spec);
+  manager->registerFactory(profile, RTC::Create<ReaderPSD>,
+                           RTC::Delete<ReaderPSD>);
+}
 };
