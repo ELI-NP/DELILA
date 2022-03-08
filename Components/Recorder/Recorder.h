@@ -77,7 +77,7 @@ private:
   unsigned long fSaveInterval;
   unsigned int fSubRunNumber;
 
-  std::unique_ptr<std::vector<TreeData *>> fpDataVec;
+  std::unique_ptr<std::vector<TreeData>> fpDataVec;
   void ResetVec();
 
   // When the stop, or very high event rate case,
@@ -87,10 +87,9 @@ private:
   void MakeTree();
   void WriteFile();
   bool fStopFlag;
-  std::thread fEnqueueDataThread;
   std::thread fMakeTreeThread;
   std::thread fWriteFileThread;
-  std::deque<std::vector<TreeData *> *> fRawDataQueue;
+  std::deque<std::vector<TreeData> *> fRawDataQueue;
   std::deque<TTree *> fTreeQueue;
   std::mutex fMutex;
 };

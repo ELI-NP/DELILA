@@ -216,9 +216,7 @@ int ReaderPSD::read_data_from_detectors()
       index += sizeTS;
       received_data_size += sizeTS;
 
-      double fineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
-      // std::cout << fineTS <<" "<< data->at(i)->TimeStamp <<" "<< data->at(i)->FineTS << std::endl;
-      memcpy(&hit[index], &(fineTS), sizeFineTS);
+      memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
       index += sizeFineTS;
       received_data_size += sizeFineTS;
 

@@ -10,22 +10,21 @@
 #ifndef MONITOR_H
 #define MONITOR_H
 
-#include <memory>
-#include <array>
-#include <curl/curl.h>
-#include <string>
-
-#include <TF1.h>
-#include <TH1.h>
 #include <TCanvas.h>
+#include <TF1.h>
 #include <TGraph.h>
+#include <TH1.h>
 #include <THttpServer.h>
-#include <TStyle.h>
 #include <TPolyLine.h>
 #include <TSpectrum.h>
+#include <TStyle.h>
+#include <curl/curl.h>
+
+#include <array>
+#include <memory>
+#include <string>
 
 #include "../../TDigiTES/include/TPHAData.hpp"
-
 #include "DaqComponentBase.h"
 
 using namespace RTC;
@@ -33,10 +32,8 @@ using namespace RTC;
 // Number of peaks for TSpectrum
 // constexpr int knPeaks = 8;
 
-class Monitor
-    : public DAQMW::DaqComponentBase
-{
-public:
+class Monitor : public DAQMW::DaqComponentBase {
+ public:
   Monitor(RTC::Manager *manager);
   ~Monitor();
 
@@ -48,11 +45,11 @@ public:
   // former rtc_active_do()
   virtual RTC::ReturnCode_t onExecute(RTC::UniqueId ec_id);
 
-private:
+ private:
   TimedOctetSeq m_in_data;
   InPort<TimedOctetSeq> m_InPort;
 
-private:
+ private:
   int daq_dummy();
   int daq_configure();
   int daq_unconfigure();
@@ -77,13 +74,14 @@ private:
 
   static constexpr int kgMods = 8;
   static constexpr int kgChs = 16;
-  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHist;
-  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgBrds> fHistADC;
-  std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgBrds> fSignal;
+  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHist;
+  std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHistADC;
+  std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgMods> fSignal;
   std::unique_ptr<THttpServer> fServ;
 
   void RegisterHists();
-  void RegisterDetectors(std::string fileName, std::string calDirName, std::string rawDirName);
+  void RegisterDetectors(std::string fileName, std::string calDirName,
+                         std::string rawDirName);
   std::string fSignalListFile;
   std::string fBGOListFile;
 
@@ -91,7 +89,7 @@ private:
   void UploadEventRate(int timeDuration);
   std::array<std::array<int, kgChs>, kgMods> fEventCounter;
   long fLastCountTime;
-  std::string fEveRateAPI;
+  std::string fEveRateServer;
 
   // Calibration
   void ReadPar();
@@ -111,9 +109,8 @@ private:
   void ResetHists();
 };
 
-extern "C"
-{
-  void MonitorInit(RTC::Manager *manager);
+extern "C" {
+void MonitorInit(RTC::Manager *manager);
 };
 
-#endif // MONITOR_H
+#endif  // MONITOR_H

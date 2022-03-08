@@ -6,12 +6,12 @@
  * @author
  *
  */
-#include <climits>
-#include <cfloat>
-
 #include "Test.h"
-#include "../include/TreeData.h"
 
+#include <cfloat>
+#include <climits>
+
+#include "../include/TreeData.h"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
 using DAQMW::FatalType::OUTPORT_ERROR;
@@ -20,26 +20,26 @@ using DAQMW::FatalType::USER_DEFINED_ERROR1;
 // Module specification
 // Change following items to suit your component's spec.
 static const char *emulator_spec[] = {"implementation_id",
-                                    "Test",
-                                    "type_name",
-                                    "Test",
-                                    "description",
-                                    "Test component",
-                                    "version",
-                                    "1.0",
-                                    "vendor",
-                                    "Kazuo Nakayoshi, KEK",
-                                    "category",
-                                    "example",
-                                    "activity_type",
-                                    "DataFlowComponent",
-                                    "max_instance",
-                                    "1",
-                                    "language",
-                                    "C++",
-                                    "lang_type",
-                                    "compile",
-                                    ""};
+                                      "Test",
+                                      "type_name",
+                                      "Test",
+                                      "description",
+                                      "Test component",
+                                      "version",
+                                      "1.0",
+                                      "vendor",
+                                      "Kazuo Nakayoshi, KEK",
+                                      "category",
+                                      "example",
+                                      "activity_type",
+                                      "DataFlowComponent",
+                                      "max_instance",
+                                      "1",
+                                      "language",
+                                      "C++",
+                                      "lang_type",
+                                      "compile",
+                                      ""};
 
 Test::Test(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
@@ -47,8 +47,7 @@ Test::Test(RTC::Manager *manager)
       m_recv_byte_size(0),
       m_out_status(BUF_SUCCESS),
 
-      m_debug(true)
-{
+      m_debug(true) {
   // Registration: InPort/OutPort/Service
 
   // Set OutPort buffers
@@ -66,8 +65,7 @@ Test::Test(RTC::Manager *manager)
 
 Test::~Test() {}
 
-RTC::ReturnCode_t Test::onInitialize()
-{
+RTC::ReturnCode_t Test::onInitialize() {
   if (m_debug) {
     std::cerr << "Test::onInitialize()" << std::endl;
   }
@@ -75,8 +73,7 @@ RTC::ReturnCode_t Test::onInitialize()
   return RTC::RTC_OK;
 }
 
-RTC::ReturnCode_t Test::onExecute(RTC::UniqueId ec_id)
-{
+RTC::ReturnCode_t Test::onExecute(RTC::UniqueId ec_id) {
   daq_do();
 
   return RTC::RTC_OK;
@@ -84,8 +81,7 @@ RTC::ReturnCode_t Test::onExecute(RTC::UniqueId ec_id)
 
 int Test::daq_dummy() { return 0; }
 
-int Test::daq_configure()
-{
+int Test::daq_configure() {
   std::cerr << "*** Test::configure" << std::endl;
 
   ::NVList *paramList;
@@ -95,8 +91,7 @@ int Test::daq_configure()
   return 0;
 }
 
-int Test::parse_params(::NVList *list)
-{
+int Test::parse_params(::NVList *list) {
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
@@ -107,23 +102,21 @@ int Test::parse_params(::NVList *list)
     std::cerr << "sname: " << sname << "  ";
     std::cerr << "value: " << svalue << std::endl;
 
-    if(sname == "NEvents"){
+    if (sname == "NEvents") {
       fNEvents = std::stoi(svalue);
-    } 
+    }
   }
 
   return 0;
 }
 
-int Test::daq_unconfigure()
-{
+int Test::daq_unconfigure() {
   std::cerr << "*** Test::unconfigure" << std::endl;
 
   return 0;
 }
 
-int Test::daq_start()
-{
+int Test::daq_start() {
   std::cerr << "*** Test::start" << std::endl;
 
   m_out_status = BUF_SUCCESS;
@@ -131,89 +124,87 @@ int Test::daq_start()
   fDataContainer = TDataContainer(200000000);
 
   fStartTime = std::chrono::system_clock::now();
-  
+
   return 0;
 }
 
-int Test::daq_stop()
-{
+int Test::daq_stop() {
   std::cerr << "*** Test::stop" << std::endl;
 
   auto stopTime = std::chrono::system_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - fStartTime).count();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      stopTime - fStartTime)
+                      .count();
   auto dataSize = get_total_byte_size();
   auto dataRate = 1000. * dataSize / duration;
 
-  std::cout << dataRate << " B/s" << std::endl; 
-  
+  std::cout << dataRate << " B/s" << std::endl;
+
   return 0;
 }
 
-int Test::daq_pause()
-{
+int Test::daq_pause() {
   std::cerr << "*** Test::pause" << std::endl;
 
   return 0;
 }
 
-int Test::daq_resume()
-{
+int Test::daq_resume() {
   std::cerr << "*** Test::resume" << std::endl;
 
   return 0;
 }
 
-int Test::read_data_from_detectors()
-{
+int Test::read_data_from_detectors() {
   if (m_debug) {
     std::cerr << "Generate data" << std::endl;
   }
   int received_data_size = 0;
   /// write your logic here
 
-  fRunCounter++;
-  if((fRunCounter % 3) == 0) {
-    constexpr auto sizeMod = sizeof(TreeData::Mod);
-    constexpr auto sizeCh = sizeof(TreeData::Ch);
-    constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
-    constexpr auto sizeFineTS = sizeof(TreeData::FineTS);
-    constexpr auto sizeLong = sizeof(TreeData::ChargeLong);
-    constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
-    constexpr auto sizeRL = sizeof(TreeData::RecordLength);
+  constexpr auto sizeMod = sizeof(TreeData::Mod);
+  constexpr auto sizeCh = sizeof(TreeData::Ch);
+  constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(TreeData::FineTS);
+  constexpr auto sizeLong = sizeof(TreeData::ChargeLong);
+  constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
+  constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-    TreeData data;
-  
-    std::uniform_int_distribution<> rand8(0, 7);
-    std::uniform_int_distribution<> randInt(0, INT_MAX);
-    std::uniform_real_distribution<> randDouble(0., DBL_MAX);
-    std::normal_distribution<> randGaussian(1000.0, 100.0);
-  
+  TreeData data;
+
+  std::uniform_int_distribution<> doOrNot(0, 9);
+  std::uniform_int_distribution<> rand8(0, 7);
+  std::uniform_int_distribution<> rand16(0, 15);
+  std::uniform_int_distribution<> randInt(0, INT_MAX);
+  std::uniform_real_distribution<> randDouble(0., DBL_MAX);
+  std::normal_distribution<> randGaussian(1000.0, 100.0);
+
+  if (doOrNot(fRandom) == 0) {
     for (auto i = 0; i < fNEvents; i++) {
-    
       data.Mod = rand8(fRandom);
-      data.Ch = rand8(fRandom);
+      data.Ch = rand16(fRandom);
       data.TimeStamp = randInt(fRandom);
       data.FineTS = randDouble(fRandom);
       data.ChargeLong = randGaussian(fRandom);
       data.ChargeShort = randGaussian(fRandom);
       data.RecordLength = 0;
-    
-      const auto oneHitSize =
-	sizeMod + sizeCh + sizeTS + sizeFineTS + sizeLong + sizeShort + sizeRL +
-	(sizeof(TreeData::Trace1[0]) * data.RecordLength);
-      
+
+      const auto oneHitSize = sizeMod + sizeCh + sizeTS + sizeFineTS +
+                              sizeLong + sizeShort + sizeRL +
+                              (sizeof(TreeData::Trace1[0]) * data.RecordLength);
+
       std::vector<char> hit;
       hit.resize(oneHitSize);
       auto index = 0;
-      
+
       memcpy(&hit[index], &(data.Mod), sizeMod);
       index += sizeMod;
       received_data_size += sizeMod;
-      
+
       memcpy(&hit[index], &(data.Ch), sizeCh);
       index += sizeCh;
       received_data_size += sizeCh;
-      
+
       memcpy(&hit[index], &(data.TimeStamp), sizeTS);
       index += sizeTS;
       received_data_size += sizeTS;
@@ -225,27 +216,26 @@ int Test::read_data_from_detectors()
       memcpy(&hit[index], &(data.ChargeLong), sizeLong);
       index += sizeLong;
       received_data_size += sizeLong;
-      
+
       memcpy(&hit[index], &(data.ChargeShort), sizeShort);
       index += sizeShort;
       received_data_size += sizeShort;
-      
+
       memcpy(&hit[index], &(data.RecordLength), sizeRL);
       index += sizeRL;
       received_data_size += sizeRL;
 
-      if(data.RecordLength > 0){
-	const auto sizeTrace =
-	  sizeof(TreeData::Trace1[0]) * data.RecordLength;
-	memcpy(&hit[index], &(data.Trace1[0]), sizeTrace);
-	index += sizeTrace;
-	received_data_size += sizeTrace;
+      if (data.RecordLength > 0) {
+        const auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
+        memcpy(&hit[index], &(data.Trace1[0]), sizeTrace);
+        index += sizeTrace;
+        received_data_size += sizeTrace;
       }
-    
+
       fDataContainer.AddData(hit);
     }
   }
-  
+
   if (m_debug) {
     std::cerr << received_data_size << std::endl;
   }
@@ -253,8 +243,7 @@ int Test::read_data_from_detectors()
   return received_data_size;
 }
 
-int Test::set_data()
-{
+int Test::set_data() {
   unsigned char header[8];
   unsigned char footer[8];
 
@@ -263,7 +252,7 @@ int Test::set_data()
   set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
-  ///set OutPort buffer length
+  /// set OutPort buffer length
   m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
@@ -273,8 +262,7 @@ int Test::set_data()
   return packet.size();
 }
 
-int Test::write_OutPort()
-{
+int Test::write_OutPort() {
   if (m_debug) {
     std::cerr << "*** Test::write_Outport" << std::endl;
   }
@@ -297,8 +285,7 @@ int Test::write_OutPort()
   return 0;
 }
 
-int Test::daq_run()
-{
+int Test::daq_run() {
   if (m_debug) {
     std::cerr << "*** Test::run" << std::endl;
   }
@@ -311,22 +298,28 @@ int Test::daq_run()
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if(++fCounter > 50 || fDataContainer.GetSize() == 0){
+    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
       fCounter = 0;
       read_data_from_detectors();
     }
+    // std::cout << fDataContainer.GetSize() << std::endl;
+    // if (fDataContainer.GetSize() > 0) {
+    //   sentDataSize = set_data();  // set data to OutPort Buffer
+    // } else {
+    //   return 0;
+    // }
     sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
   if (m_debug) {
-    std::cout << "Size: " << sentDataSize <<"\t"
-	      << "Sequence: " << get_sequence_num() << std::endl;
+    std::cout << "Size: " << sentDataSize << "\t"
+              << "Sequence: " << get_sequence_num() << std::endl;
   }
-  
+
   if (write_OutPort() < 0) {
     std::cout << m_out_status << std::endl;
     // } else if (sentDataSize > 0) {        // OutPort write successfully done
-  } else {        // OutPort write successfully done
+  } else {                              // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.
     inc_total_data_size(sentDataSize);  // increase total data byte size
   }
@@ -335,8 +328,7 @@ int Test::daq_run()
 }
 
 extern "C" {
-void TestInit(RTC::Manager *manager)
-{
+void TestInit(RTC::Manager *manager) {
   RTC::Properties profile(emulator_spec);
   manager->registerFactory(profile, RTC::Create<Test>,
                            RTC::Delete<Test>);

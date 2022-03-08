@@ -8,3 +8,5 @@ rtc.conf
 .depend
 .confFilePath
 .vscode
+run/*
+tmp/*

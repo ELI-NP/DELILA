@@ -68,8 +68,7 @@ class Test : public DAQMW::DaqComponentBase
   std::mt19937_64 fRandom;
 
   int fNEvents;
-  int fRunCounter = 0;
-  
+
   std::chrono::system_clock::time_point fStartTime;
 };
 
