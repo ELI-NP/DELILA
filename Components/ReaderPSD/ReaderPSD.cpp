@@ -92,6 +92,7 @@ int ReaderPSD::daq_configure()
   fDigitizer->OpenDigitizers();
   fDigitizer->InitDigitizers();
   fDigitizer->UseFineTS();
+  if (fFlagTrgCounter) fDigitizer->UseTrgCounter(fTrgCounterMod, fTrgCounterCh);
   fDigitizer->AllocateMemory();
 
   return 0;
@@ -113,6 +114,21 @@ int ReaderPSD::parse_params(::NVList *list)
       fConfigFile = svalue;
     } else if (sname == "StartModNo") {
       fStartModNo = std::stoi(svalue);
+    } else if (sname.find("mod") != std::string::npos &&
+               sname.find("ch") != std::string::npos) {
+      auto posMod = sname.find("mod");
+      auto posCh = sname.find("ch");
+      char modNumber[10];
+      sname.copy(modNumber, posCh - (posMod + 3), posMod + 3);
+      char chNumber[10];
+      sname.copy(chNumber, 3, posCh + 2);
+
+      fTrgCounterCh = atoi(chNumber);
+      fTrgCounterMod = atoi(modNumber);
+      std::cout << "Mod: " << fTrgCounterMod << " Ch: " << fTrgCounterCh
+                << " uses TrgCounter mode." << std::endl;
+
+      fFlagTrgCounter = true;
     }
   }
 
@@ -136,7 +152,7 @@ int ReaderPSD::daq_start()
   m_out_status = BUF_SUCCESS;
 
   fDataContainer = TDataContainer();
-  
+
   // usleep(1000);
   fDigitizer->Start();
 
@@ -189,40 +205,38 @@ int ReaderPSD::read_data_from_detectors()
 
     for (auto i = 0; i < nData; i++) {
       const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
-        (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
-      
+          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
+          sizeRL + (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+
       std::vector<char> hit;
       hit.resize(oneHitSize);
       auto index = 0;
-      
+
       unsigned char mod = data->at(i)->ModNumber + fStartModNo;
       memcpy(&hit[index], &(mod), sizeMod);
       index += sizeMod;
       received_data_size += sizeMod;
-      
+
       memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
       index += sizeCh;
       received_data_size += sizeCh;
-      
+
       memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
       index += sizeTS;
       received_data_size += sizeTS;
 
-      double fineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
-      // std::cout << fineTS <<" "<< data->at(i)->TimeStamp <<" "<< data->at(i)->FineTS << std::endl;
-      memcpy(&hit[index], &(fineTS), sizeFineTS);
+      memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
       index += sizeFineTS;
       received_data_size += sizeFineTS;
 
       memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeEne);
       index += sizeEne;
       received_data_size += sizeEne;
-      
+
       memcpy(&hit[index], &(data->at(i)->ChargeShort), sizeShort);
       index += sizeShort;
       received_data_size += sizeShort;
-      
+
       memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
       index += sizeRL;
       received_data_size += sizeRL;
@@ -250,7 +264,7 @@ int ReaderPSD::set_data()
   set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
-  ///set OutPort buffer length
+  /// set OutPort buffer length
   m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
@@ -295,7 +309,7 @@ int ReaderPSD::daq_run()
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if(++fCounter > 50 || fDataContainer.GetSize() == 0){
+    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
       fCounter = 0;
       read_data_from_detectors();
     }
@@ -304,7 +318,7 @@ int ReaderPSD::daq_run()
 
   if (write_OutPort() < 0) {
     ;                                   // Timeout. do nothing.
-  } else {        // OutPort write successfully done
+  } else {                              // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.
     inc_total_data_size(sentDataSize);  // increase total data byte size
   }

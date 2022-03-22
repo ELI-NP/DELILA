@@ -7,12 +7,13 @@
  *
  */
 
+#include "ReaderPHA.h"
+
 #include <curl/curl.h>
 
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-#include "ReaderPHA.h"
 #include "../../TDigiTES/include/TPSDData.hpp"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
@@ -245,7 +246,7 @@ int ReaderPHA::read_data_from_detectors()
   constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
   constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
   constexpr auto sizeRL = sizeof(PSDData::RecordLength);
-  
+
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
   // std::cout << data->size() << std::endl;
@@ -254,57 +255,54 @@ int ReaderPHA::read_data_from_detectors()
 
     for (auto i = 0; i < nData; i++) {
       const auto oneHitSize =
-        sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort + sizeRL +
-        (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
+          sizeRL + (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
 
       if (data->at(i)->Energy > 0 && data->at(i)->Energy < 32767) {
         auto index = 0;
         std::vector<char> hit;
         hit.resize(oneHitSize);
 
-	PSDData dummy;
-	
-	dummy.ModNumber = data->at(i)->ModNumber + fStartModNo;
-	
-	memcpy(&hit[index], &(dummy.ModNumber), sizeMod);
-	index += sizeMod;
-	received_data_size += sizeMod;
-      
-	memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
-	index += sizeCh;
-	received_data_size += sizeCh;
-	
-	memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
-	index += sizeTS;
-	received_data_size += sizeTS;
-	
-	//double fineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
-	//std::cout << fineTS <<" "<< data->at(i)->TimeStamp <<" "<< data->at(i)->FineTS << std::endl;
-	dummy.FineTS = 1000 * data->at(i)->TimeStamp + data->at(i)->FineTS;
-	memcpy(&hit[index], &(dummy.FineTS), sizeFineTS);
-	index += sizeFineTS;
-	received_data_size += sizeFineTS;
-	
-	memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
-	index += sizeEne;
-	received_data_size += sizeEne;
+        PSDData dummy;
 
-	dummy.ChargeShort = 0;
-	memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
-	index += sizeShort;
-	received_data_size += sizeShort;
-	
-	memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
-	index += sizeRL;
-	received_data_size += sizeRL;
-	
-	const auto sizeTrace =
-          sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength;
-	memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
-	index += sizeTrace;
-	received_data_size += sizeTrace;
-	
-	fDataContainer.AddData(hit);
+        dummy.ModNumber = data->at(i)->ModNumber + fStartModNo;
+
+        memcpy(&hit[index], &(dummy.ModNumber), sizeMod);
+        index += sizeMod;
+        received_data_size += sizeMod;
+
+        memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
+        index += sizeCh;
+        received_data_size += sizeCh;
+
+        memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
+        index += sizeTS;
+        received_data_size += sizeTS;
+
+        memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
+        index += sizeFineTS;
+        received_data_size += sizeFineTS;
+
+        memcpy(&hit[index], &(data->at(i)->Energy), sizeEne);
+        index += sizeEne;
+        received_data_size += sizeEne;
+
+        dummy.ChargeShort = 0;
+        memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
+        index += sizeShort;
+        received_data_size += sizeShort;
+
+        memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
+        index += sizeRL;
+        received_data_size += sizeRL;
+
+        const auto sizeTrace =
+            sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength;
+        memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
+        index += sizeTrace;
+        received_data_size += sizeTrace;
+
+        fDataContainer.AddData(hit);
       }
     }
   }
@@ -322,7 +320,7 @@ int ReaderPHA::set_data()
   set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
-  ///set OutPort buffer length
+  /// set OutPort buffer length
   m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
@@ -373,7 +371,7 @@ int ReaderPHA::daq_run()
 
   if (write_OutPort() < 0) {
     ;                                   // Timeout. do nothing.
-  } else {        // OutPort write successfully done
+  } else {                              // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.
     inc_total_data_size(sentDataSize);  // increase total data byte size
   }

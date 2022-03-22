@@ -71,7 +71,11 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   std::string fConfigFile;
   int fStartModNo = 0;
   unsigned int fCounter = 0;
-  
+
+  int fTrgCounterMod = -1;
+  int fTrgCounterCh = -1;
+  bool fFlagTrgCounter = false;
+
   TDataContainer fDataContainer;
 };
 

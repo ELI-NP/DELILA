@@ -127,7 +127,7 @@ Monitor::Monitor(RTC::Manager *manager)
   fCounter = 0;
   fDumpAPI = "";
   fDumpState = "";
-  fEveRateAPI = "127.0.0.1";
+  fEveRateServer = "";
 
   fCalibrationFile = "";
 
@@ -248,6 +248,7 @@ int Monitor::daq_configure()
       fSignal[iBrd][iCh]->SetMaximum(18000);
     }
   }
+
   RegisterHists();
 
   return 0;
@@ -255,8 +256,10 @@ int Monitor::daq_configure()
 
 void Monitor::RegisterHists()
 {
-  RegisterDetectors(fSignalListFile, "/CalibratedSignal", "/RawSignal");
-  RegisterDetectors(fBGOListFile, "/CalibratedBGO", "/RawBGO");
+  if (fSignalListFile != "")
+    RegisterDetectors(fSignalListFile, "/CalibratedSignal", "/RawSignal");
+  if (fBGOListFile != "")
+    RegisterDetectors(fBGOListFile, "/CalibratedBGO", "/RawBGO");
 
   for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
     TString regDirectory = Form("/Brd%02d", iBrd);
@@ -324,8 +327,8 @@ int Monitor::parse_params(::NVList *list)
 
     if (sname == "DumpAPI") {
       fDumpAPI = svalue;
-    } else if (sname == "EveRateAPI") {
-      fEveRateAPI = svalue;
+    } else if (sname == "EveRateServer") {
+      fEveRateServer = svalue;
     } else if (sname == "Calibration") {
       fCalibrationFile = svalue;
     } else if (sname == "SignalList") {
@@ -448,7 +451,7 @@ int Monitor::daq_run()
   auto timeDiff = now - fLastCountTime;
   if (timeDiff >= uploadInterval) {
     fLastCountTime = now;
-    UploadEventRate(timeDiff);
+    if (fEveRateServer != "") UploadEventRate(timeDiff);
   }
 
   unsigned int recv_byte_size = read_InPort();
@@ -580,7 +583,7 @@ void Monitor::UploadEventRate(int timeDuration)
     }
   }
 
-  auto server = influxdb_cpp::server_info(fEveRateAPI, 8086, "event_rate");
+  auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
 
   std::string resp;
   auto now = time(nullptr);
@@ -612,6 +615,7 @@ void Monitor::UploadEventRate(int timeDuration)
 }
 
 extern "C" {
+
 void MonitorInit(RTC::Manager *manager)
 {
   RTC::Properties profile(monitor_spec);

@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+<!-- DON'T REMOVE THE ABOVE LINE.                                     -->
+<!-- DON'T PUT ANY LINES ABOVE THE 1ST LINE.                          -->
+<!-- Sample config.xml to run TinySource and TinySink.                -->
+<!-- Please rewrite execPath (2 places), confFile (2 places) suitable -->
+<!-- for your directory structure.                                    -->
+<!-- run.py will create rtc.conf in /tmp/daqmw/rtc.conf               -->
+<!-- If you use run.py, set confFile as /tmp/daqmw/rtc.conf           -->
+<configInfo>
+  <daqOperator>
+    <hostAddr>127.0.0.1</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+	<component cid="ReaderWave0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderWave0.rtc</instName>
+          <execPath>/home/gant/DELILA/Components/ReaderWave/ReaderWaveComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>5</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="StartModNo">4</param>
+	    <param pid="ConfigFile">/home/gant/DELILA/Wave.conf</param>
+	  </params>
+        </component>
+	<component cid="ReaderPSD0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderPSD0.rtc</instName>
+          <execPath>/home/gant/DELILA/Components/ReaderPSD/ReaderPSDComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="RecordLength">5000</param>
+	    <param pid="ConfigFile">/home/gant/DELILA/PSD.conf</param>
+	  </params>
+        </component>
+        <component cid="Dispatcher0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/gant/DELILA/Components/Dispatcher2to2/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="ReaderPSD0:reader_out"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">dispatcher_in1</inPort>
+	    <inPort from="ReaderWave0:reader_out"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">dispatcher_in2</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/gant/DELILA/Components/Monitor/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out1"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+	    <param pid="p0">0</param>
+	    <param pid="p1">0.00071466881</param>
+	    <param pid="UploadInterval">60</param>
+            <param pid="PeakThreshold">0.05</param>
+            <param pid="TargetEne">1.33</param>
+          </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/gant/DELILA/Components/Recorder/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2"
+		    buffer_length="4096"
+		    buffer_read_timeout="0.01">reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+		  <param pid="OutputDir">/home/gant/DELILA/run</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>

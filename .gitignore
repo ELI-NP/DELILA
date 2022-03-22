@@ -2,6 +2,12 @@
 *~
 *.o
 autogen
-.depend
 *Comp
 .vscode
+omninames*
+rtc.conf
+.depend
+.confFilePath
+.vscode
+run/*
+tmp/*

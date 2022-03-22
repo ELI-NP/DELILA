@@ -6,7 +6,7 @@ SRCS += $(COMP_NAME).cpp
 SRCS += $(COMP_NAME)Comp.cpp
 
 LDFLAGS += $(shell root-config --glibs) -lRHTTP
-CPPFLAGS += -I$(shell root-config --incdir) -pthread -std=c++11
+CPPFLAGS += -I$(shell root-config --incdir) -pthread
 
 # sample install target
 #

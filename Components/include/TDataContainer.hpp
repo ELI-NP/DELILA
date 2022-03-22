@@ -8,6 +8,7 @@ class TDataContainer
 {
  public:
   TDataContainer();
+  TDataContainer(unsigned int maxSize);
   ~TDataContainer();
 
   std::vector<char> GetPacket();
@@ -19,7 +20,7 @@ class TDataContainer
 
  private:
   std::deque<std::vector<char>> fDataQueue;
-  int fMaxSize;
+  unsigned int fMaxSize;
 };
 
 #endif

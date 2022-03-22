@@ -1,6 +1,6 @@
 // -*- C++ -*-
 /*!
- * @file 
+ * @file
  * @brief
  * @date
  * @author
@@ -10,36 +10,31 @@
 #ifndef MONITOR_H
 #define MONITOR_H
 
-#include <memory>
-#include <array>
-#include <curl/curl.h>
-#include <string>
-
-#include <TF1.h>
-#include <TH1.h>
 #include <TCanvas.h>
+#include <TF1.h>
 #include <TGraph.h>
+#include <TH1.h>
 #include <THttpServer.h>
-#include <TStyle.h>
 #include <TPolyLine.h>
 #include <TSpectrum.h>
+#include <TStyle.h>
+#include <curl/curl.h>
+
+#include <array>
+#include <memory>
+#include <string>
 
 #include "../../TDigiTES/include/TPHAData.hpp"
-
 #include "DaqComponentBase.h"
 
 using namespace RTC;
 
-
 // Number of peaks for TSpectrum
 // constexpr int knPeaks = 8;
 
-
-class Monitor
-  : public DAQMW::DaqComponentBase
-{
-public:
-  Monitor(RTC::Manager* manager);
+class Monitor : public DAQMW::DaqComponentBase {
+ public:
+  Monitor(RTC::Manager *manager);
   ~Monitor();
 
   // The initialize action (on CREATED->ALIVE transition)
@@ -50,11 +45,11 @@ public:
   // former rtc_active_do()
   virtual RTC::ReturnCode_t onExecute(RTC::UniqueId ec_id);
 
-private:
-  TimedOctetSeq          m_in_data;
-  InPort<TimedOctetSeq>  m_InPort;
+ private:
+  TimedOctetSeq m_in_data;
+  InPort<TimedOctetSeq> m_InPort;
 
-private:
+ private:
   int daq_dummy();
   int daq_configure();
   int daq_unconfigure();
@@ -64,11 +59,11 @@ private:
   int daq_pause();
   int daq_resume();
 
-  int parse_params(::NVList* list);
+  int parse_params(::NVList *list);
   int reset_InPort();
 
   unsigned int read_InPort();
-  //int online_analyze();
+  // int online_analyze();
 
   BufferStatus m_in_status;
   bool m_debug;
@@ -85,23 +80,24 @@ private:
   std::unique_ptr<THttpServer> fServ;
 
   void RegisterHists();
-  void RegisterDetectors(std::string fileName, std::string calDirName, std::string rawDirName);
+  void RegisterDetectors(std::string fileName, std::string calDirName,
+                         std::string rawDirName);
   std::string fSignalListFile;
   std::string fBGOListFile;
-  
+
   // Event rate uploading
   void UploadEventRate(int timeDuration);
   std::array<std::array<int, kgChs>, kgMods> fEventCounter;
   long fLastCountTime;
-  std::string fEveRateAPI;
+  std::string fEveRateServer;
 
   // Calibration
   void ReadPar();
   std::string fCalibrationFile;
-  std::array<std::array<std::array<double, 2> , kgChs>, kgMods> fCalPar;
+  std::array<std::array<std::array<double, 2>, kgChs>, kgMods> fCalPar;
   std::array<std::array<std::unique_ptr<TF1>, kgChs>, kgMods> fCalFnc;
   double fBinWidth;
-  
+
   // ASCII Dump
   void DumpHists();
   // std::unique_ptr<CURL> fCurl;
@@ -111,13 +107,10 @@ private:
 
   // Reset Histograms
   void ResetHists();
-
 };
 
-
-extern "C"
-{
-  void MonitorInit(RTC::Manager* manager);
+extern "C" {
+void MonitorInit(RTC::Manager *manager);
 };
 
-#endif // MONITOR_H
+#endif  // MONITOR_H
