@@ -4,3 +4,4 @@
 autogen
 .depend
 *Comp
+.vscode

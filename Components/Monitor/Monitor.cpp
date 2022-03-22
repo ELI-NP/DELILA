@@ -7,43 +7,50 @@
  *
  */
 
+#include "Monitor.h"
+
+#include <TBufferJSON.h>
+#include <TCanvas.h>
+#include <TStyle.h>
+#include <TSystem.h>
 #include <sys/stat.h>
+
 #include <algorithm>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-#include <TSystem.h>
-#include <TStyle.h>
-#include <TBufferJSON.h>
-#include <TCanvas.h>
-
-#include "Monitor.h"
 #include "../../TDigiTES/include/TPSDData.hpp"
 #include "influxdb.hpp"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
-using DAQMW::FatalType::INPORT_ERROR;
-using DAQMW::FatalType::HEADER_DATA_MISMATCH;
 using DAQMW::FatalType::FOOTER_DATA_MISMATCH;
+using DAQMW::FatalType::HEADER_DATA_MISMATCH;
+using DAQMW::FatalType::INPORT_ERROR;
 using DAQMW::FatalType::USER_DEFINED_ERROR1;
 
 // Module specification
 // Change following items to suit your component's spec.
-static const char* monitor_spec[] =
-  {
-    "implementation_id", "Monitor",
-    "type_name",         "Monitor",
-    "description",       "Monitor component",
-    "version",           "1.0",
-    "vendor",            "Kazuo Nakayoshi, KEK",
-    "category",          "example",
-    "activity_type",     "DataFlowComponent",
-    "max_instance",      "1",
-    "language",          "C++",
-    "lang_type",         "compile",
-    ""
-  };
-
+static const char *monitor_spec[] = {"implementation_id",
+                                     "Monitor",
+                                     "type_name",
+                                     "Monitor",
+                                     "description",
+                                     "Monitor component",
+                                     "version",
+                                     "1.0",
+                                     "vendor",
+                                     "Kazuo Nakayoshi, KEK",
+                                     "category",
+                                     "example",
+                                     "activity_type",
+                                     "DataFlowComponent",
+                                     "max_instance",
+                                     "1",
+                                     "language",
+                                     "C++",
+                                     "lang_type",
+                                     "compile",
+                                     ""};
 
 // This factor is for fitting
 constexpr auto kBGRange = 2.5;
@@ -82,7 +89,7 @@ Double_t FitFnc(Double_t *pos, Double_t *par)
 size_t CallbackFunc(char *ptr, size_t size, size_t nmemb, std::string *stream)
 {
   int dataLength = size * nmemb;
-  if(ptr != nullptr) stream->assign(ptr, dataLength);
+  if (ptr != nullptr) stream->assign(ptr, dataLength);
   return dataLength;
 }
 
@@ -93,17 +100,17 @@ size_t CallbackFunc(char *ptr, size_t size, size_t nmemb, std::string *stream)
 // Need to check
 Bool_t fResetFlag;
 
-Monitor::Monitor(RTC::Manager* manager)
-  : DAQMW::DaqComponentBase(manager),
-  m_InPort("monitor_in",   m_in_data),
-  m_in_status(BUF_SUCCESS),
-  m_debug(false)
+Monitor::Monitor(RTC::Manager *manager)
+    : DAQMW::DaqComponentBase(manager),
+      m_InPort("monitor_in", m_in_data),
+      m_in_status(BUF_SUCCESS),
+      m_debug(false)
 {
   // Registration: InPort/OutPort/Service
 
   // Set InPort buffers
-  registerInPort ("monitor_in",  m_InPort);
-   
+  registerInPort("monitor_in", m_InPort);
+
   init_command_port();
   init_state_table();
   set_comp_name("MONITOR");
@@ -113,9 +120,10 @@ Monitor::Monitor(RTC::Manager* manager)
   fServ.reset(new THttpServer("http:8080?monitoring=5000;rw;noglobal"));
 
   fResetFlag = kFALSE;
-  fServ->RegisterCommand("/ResetHists", "fResetFlag=kTRUE", "button;rootsys/icons/refresh.png");
+  fServ->RegisterCommand("/ResetHists", "fResetFlag=kTRUE",
+                         "button;rootsys/icons/refresh.png");
   // fServ->Hide("/Resethists");
-  
+
   fCounter = 0;
   fDumpAPI = "";
   fDumpState = "";
@@ -123,10 +131,13 @@ Monitor::Monitor(RTC::Manager* manager)
 
   fCalibrationFile = "";
 
+  fSignalListFile = "";
+  fBGOListFile = "";
+
   fBinWidth = 1.;
 
-  for(auto iBrd = 0; iBrd < kgMods; iBrd++) {
-    for(auto iCh = 0; iCh < kgChs; iCh++) {
+  for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
+    for (auto iCh = 0; iCh < kgChs; iCh++) {
       TString fncName = Form("fnc%02d_%02d", iBrd, iCh);
       fCalFnc[iBrd][iCh].reset(new TF1(fncName, "pol1"));
       fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
@@ -134,17 +145,14 @@ Monitor::Monitor(RTC::Manager* manager)
   }
 }
 
-Monitor::~Monitor()
-{
-  curl_easy_cleanup(fCurl);
-}
+Monitor::~Monitor() { curl_easy_cleanup(fCurl); }
 
 RTC::ReturnCode_t Monitor::onInitialize()
 {
   if (m_debug) {
     std::cerr << "Monitor::onInitialize()" << std::endl;
   }
-   
+
   return RTC::RTC_OK;
 }
 
@@ -165,7 +173,7 @@ int Monitor::daq_configure()
 {
   std::cerr << "*** Monitor::configure" << std::endl;
 
-  ::NVList* paramList;
+  ::NVList *paramList;
   paramList = m_daq_service0.getCompParams();
   parse_params(paramList);
 
@@ -177,18 +185,18 @@ int Monitor::daq_configure()
     std::cerr << "Failed to initializing curl" << std::endl;
     return 1;
   }
-  if(fDumpAPI != ""){
+  if (fDumpAPI != "") {
     curl_easy_setopt(fCurl, CURLOPT_URL, fDumpAPI.c_str());
     curl_easy_setopt(fCurl, CURLOPT_WRITEFUNCTION, CallbackFunc);
     curl_easy_setopt(fCurl, CURLOPT_WRITEDATA, &fDumpState);
   }
 
-  if(fCalibrationFile == "") {
-    for(auto iBrd = 0; iBrd < kgMods; iBrd++) {
-      for(auto iCh = 0; iCh < kgChs; iCh++) {
-	TString fncName = Form("fnc%02d_%02d", iBrd, iCh);
-	fCalFnc[iBrd][iCh].reset(new TF1(fncName, "pol1"));
-	fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
+  if (fCalibrationFile == "") {
+    for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
+      for (auto iCh = 0; iCh < kgChs; iCh++) {
+        TString fncName = Form("fnc%02d_%02d", iBrd, iCh);
+        fCalFnc[iBrd][iCh].reset(new TF1(fncName, "pol1"));
+        fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
       }
     }
   } else {
@@ -197,31 +205,31 @@ int Monitor::daq_configure()
     int mod, ch;
     double p0, p1;
 
-    if(fin.is_open()){
-      while(true) {
-	fin >> mod >> ch >> p0 >> p1;
-	if(fin.eof()) break;
-      
-	std::cout << mod <<" "<< ch <<" "<< p0 <<" "<< p1 << std::endl;
-	if(mod >= 0 && mod < kgMods &&
-	   ch >= 0 && ch < kgChs) {
-	  TString fncName = Form("fnc%02d_%02d", mod, ch);
-	  fCalFnc[mod][ch].reset(new TF1(fncName, "pol1"));
-	  fCalFnc[mod][ch]->SetParameters(p0, p1);
-	}
+    if (fin.is_open()) {
+      while (true) {
+        fin >> mod >> ch >> p0 >> p1;
+        if (fin.eof()) break;
+
+        std::cout << mod << " " << ch << " " << p0 << " " << p1 << std::endl;
+        if (mod >= 0 && mod < kgMods && ch >= 0 && ch < kgChs) {
+          TString fncName = Form("fnc%02d_%02d", mod, ch);
+          fCalFnc[mod][ch].reset(new TF1(fncName, "pol1"));
+          fCalFnc[mod][ch]->SetParameters(p0, p1);
+        }
       }
     }
-  
+
     fin.close();
   }
-  
-  for(auto iBrd = 0; iBrd < kgMods; iBrd++){
-    for(auto iCh = 0; iCh < kgChs; iCh++){
+
+  for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
+    for (auto iCh = 0; iCh < kgChs; iCh++) {
       TString histName = Form("hist%02d_%02d", iBrd, iCh);
       TString histTitle = Form("Brd%02d ch%02d", iBrd, iCh);
-      
+
       const double minBinWidth = fCalFnc[iBrd][iCh]->GetParameter(1);
-      const double binWidth = (int(fBinWidth / minBinWidth) + 1) * minBinWidth; // in keV
+      const double binWidth =
+          (int(fBinWidth / minBinWidth) + 1) * minBinWidth;  // in keV
       const double nBins = int(30000 / binWidth) + 1;
       const double min = minBinWidth / 2. + fCalFnc[iBrd][iCh]->GetParameter(0);
       const double max = min + nBins * binWidth;
@@ -229,9 +237,10 @@ int Monitor::daq_configure()
       fHist[iBrd][iCh]->SetXTitle("[keV]");
 
       histName = Form("ADC%02d_%02d", iBrd, iCh);
-      fHistADC[iBrd][iCh].reset(new TH1D(histName, histTitle, 30000, 0.5, 30000.5));
+      fHistADC[iBrd][iCh].reset(
+          new TH1D(histName, histTitle, 30000, 0.5, 30000.5));
       fHistADC[iBrd][iCh]->SetXTitle("ADC channel");
-      
+
       TString grName = Form("signal%02d_%02d", iBrd, iCh);
       fSignal[iBrd][iCh].reset(new TGraph());
       fSignal[iBrd][iCh]->SetNameTitle(grName, histTitle);
@@ -240,7 +249,7 @@ int Monitor::daq_configure()
     }
   }
   RegisterHists();
-  
+
   return 0;
 }
 
@@ -248,10 +257,10 @@ void Monitor::RegisterHists()
 {
   RegisterDetectors(fSignalListFile, "/CalibratedSignal", "/RawSignal");
   RegisterDetectors(fBGOListFile, "/CalibratedBGO", "/RawBGO");
-    
-  for(auto iBrd = 0; iBrd < kgMods; iBrd++){
+
+  for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
     TString regDirectory = Form("/Brd%02d", iBrd);
-    for(auto iCh = 0; iCh < kgChs; iCh++){
+    for (auto iCh = 0; iCh < kgChs; iCh++) {
       fServ->Register(regDirectory, fHist[iBrd][iCh].get());
       fServ->Register(regDirectory, fHistADC[iBrd][iCh].get());
       // fServ->Register(regDirectory, fSignal[iBrd][iCh].get());
@@ -259,59 +268,61 @@ void Monitor::RegisterHists()
   }
 }
 
-void Monitor::RegisterDetectors(std::string fileName, std::string calDirName, std::string rawDirName)
+void Monitor::RegisterDetectors(std::string fileName, std::string calDirName,
+                                std::string rawDirName)
 {
-  if(fileName != "") {
+  if (fileName != "") {
     std::ifstream fin(fileName);
-    if(fin.is_open()) {
+    if (fin.is_open()) {
       unsigned int mod, ch;
       std::string detName;
 
       TString calDirectory = calDirName;
       TString rawDirectory = rawDirName;
-      
-      while(true) {
-	fin >> mod >> ch >> detName;
-	if(fin.eof()) break;
 
-	std::cout << mod <<" "<< ch <<" "<< detName << std::endl;
-	
-	if(mod < 0 || mod >= kgMods || ch < 0 || ch >= kgChs) {
-	  std::cerr << "Config file: " << fileName << " indicates unavailable ch or mod.\n"
-		    << "Check it again!" << std::endl;
-	} else {
-	std::string title = fHist[mod][ch]->GetTitle();
-	title = detName + ": " + title;
-	fHist[mod][ch]->SetTitle(title.c_str());
+      while (true) {
+        fin >> mod >> ch >> detName;
+        if (fin.eof()) break;
 
-	title = fHistADC[mod][ch]->GetTitle();
-	title = detName + ": " + title;
-	fHistADC[mod][ch]->SetTitle(title.c_str());
+        std::cout << mod << " " << ch << " " << detName << std::endl;
 
-	fServ->Register(calDirectory, fHist[mod][ch].get());
-	fServ->Register(rawDirectory, fHistADC[mod][ch].get());
-	}
+        if (mod < 0 || mod >= kgMods || ch < 0 || ch >= kgChs) {
+          std::cerr << "Config file: " << fileName
+                    << " indicates unavailable ch or mod.\n"
+                    << "Check it again!" << std::endl;
+        } else {
+          std::string title = fHist[mod][ch]->GetTitle();
+          title = detName + ": " + title;
+          fHist[mod][ch]->SetTitle(title.c_str());
+
+          title = fHistADC[mod][ch]->GetTitle();
+          title = detName + ": " + title;
+          fHistADC[mod][ch]->SetTitle(title.c_str());
+
+          fServ->Register(calDirectory, fHist[mod][ch].get());
+          fServ->Register(rawDirectory, fHistADC[mod][ch].get());
+        }
       }
-      fin.close();      
+      fin.close();
     }
   } else {
     std::cerr << "No such the file: " << fileName << std::endl;
   }
 }
 
-int Monitor::parse_params(::NVList* list)
+int Monitor::parse_params(::NVList *list)
 {
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
-  for (int i = 0; i < len; i+=2) {
-    std::string sname  = (std::string)(*list)[i].value;
-    std::string svalue = (std::string)(*list)[i+1].value;
+  for (int i = 0; i < len; i += 2) {
+    std::string sname = (std::string)(*list)[i].value;
+    std::string svalue = (std::string)(*list)[i + 1].value;
 
     std::cerr << "sname: " << sname << "  ";
     std::cerr << "value: " << svalue << std::endl;
 
-    if(sname == "DumpAPI"){
+    if (sname == "DumpAPI") {
       fDumpAPI = svalue;
     } else if (sname == "EveRateAPI") {
       fEveRateAPI = svalue;
@@ -323,35 +334,34 @@ int Monitor::parse_params(::NVList* list)
       fBGOListFile = svalue;
     } else if (sname == "BinWidth") {
       fBinWidth = std::stod(svalue);
-      if(fBinWidth <= 0.) fBinWidth = 1.;
+      if (fBinWidth <= 0.) fBinWidth = 1.;
     }
-
   }
-   
+
   return 0;
 }
 
 int Monitor::daq_unconfigure()
 {
   std::cerr << "*** Monitor::unconfigure" << std::endl;
-   
+
   return 0;
 }
 
 int Monitor::daq_start()
 {
   std::cerr << "*** Monitor::start" << std::endl;
-  m_in_status  = BUF_SUCCESS;
+  m_in_status = BUF_SUCCESS;
 
   fLastCountTime = time(0);
-  for(auto &&brd: fEventCounter) {
-    for(auto &&ch: brd) {
+  for (auto &&brd : fEventCounter) {
+    for (auto &&ch : brd) {
       ch = 0;
     }
   }
 
   ResetHists();
-    
+
   return 0;
 }
 
@@ -380,7 +390,7 @@ int Monitor::daq_resume()
 int Monitor::reset_InPort()
 {
   int ret = true;
-  while(ret == true) {
+  while (ret == true) {
     ret = m_InPort.read();
   }
 
@@ -394,24 +404,21 @@ unsigned int Monitor::read_InPort()
   bool ret = m_InPort.read();
 
   //////////////////// check read status /////////////////////
-  if (ret == false) { // false: TIMEOUT or FATAL
+  if (ret == false) {  // false: TIMEOUT or FATAL
     m_in_status = check_inPort_status(m_InPort);
-    if (m_in_status == BUF_TIMEOUT) { // Buffer empty.
-      if (check_trans_lock()) {     // Check if stop command has come.
-	set_trans_unlock();       // Transit to CONFIGURE state.
+    if (m_in_status == BUF_TIMEOUT) {  // Buffer empty.
+      if (check_trans_lock()) {        // Check if stop command has come.
+        set_trans_unlock();            // Transit to CONFIGURE state.
       }
-    }
-    else if (m_in_status == BUF_FATAL) { // Fatal error
+    } else if (m_in_status == BUF_FATAL) {  // Fatal error
       fatal_error_report(INPORT_ERROR);
     }
-  }
-  else {
+  } else {
     recv_byte_size = m_in_data.data.length();
   }
 
   if (m_debug) {
-    std::cerr << "m_in_data.data.length():" << recv_byte_size
-	      << std::endl;
+    std::cerr << "m_in_data.data.length():" << recv_byte_size << std::endl;
   }
 
   return recv_byte_size;
@@ -423,34 +430,33 @@ int Monitor::daq_run()
     std::cerr << "*** Monitor::run" << std::endl;
   }
   // std::cout <<"Flag: " << fResetFlag << std::endl;
-  if(fResetFlag) {
+  if (fResetFlag) {
     ResetHists();
     fResetFlag = kFALSE;
   }
-  
-  if(fDumpAPI != "") {
+
+  if (fDumpAPI != "") {
     // fDumpState = "";
     auto curlCode = curl_easy_perform(fCurl);
     // std::cout << curlCode <<"\t"<< fDumpState << std::endl;
-    if(curlCode == 0 && fDumpState == "true")
-      DumpHists();
+    if (curlCode == 0 && fDumpState == "true") DumpHists();
   }
 
   // constexpr auto uploadInterval = 60;
   constexpr auto uploadInterval = 10;
   auto now = time(0);
   auto timeDiff = now - fLastCountTime;
-  if(timeDiff >= uploadInterval) {
+  if (timeDiff >= uploadInterval) {
     fLastCountTime = now;
     UploadEventRate(timeDiff);
   }
-  
+
   unsigned int recv_byte_size = read_InPort();
-  if (recv_byte_size == 0) { // Timeout
+  if (recv_byte_size == 0) {  // Timeout
     return 0;
   }
 
-  check_header_footer(m_in_data, recv_byte_size); // check header and footer
+  check_header_footer(m_in_data, recv_byte_size);  // check header and footer
   unsigned int event_byte_size = get_event_size(recv_byte_size);
 
   /////////////  Write component main logic here. /////////////
@@ -465,8 +471,8 @@ int Monitor::daq_run()
   // gSystem->ProcessEvents();
   // }
 
-  inc_sequence_num();                       // increase sequence num.
-  inc_total_data_size(event_byte_size);     // increase total data byte size
+  inc_sequence_num();                    // increase sequence num.
+  inc_total_data_size(event_byte_size);  // increase total data byte size
 
   return 0;
 }
@@ -481,11 +487,10 @@ void Monitor::FillHist(int size)
   constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
   constexpr auto sizeRL = sizeof(PSDData::RecordLength);
 
-  
-  PSDData data(5000000); // 5000000 = 10ms, enough big for waveform???
+  PSDData data(5000000);  // 5000000 = 10ms, enough big for waveform???
 
   constexpr int headerSize = 8;
-  for(unsigned int i = headerSize; i < size;) {
+  for (unsigned int i = headerSize; i < size;) {
     // The order of data should be the same as Reader
     memcpy(&data.ModNumber, &m_in_data.data[i], sizeMod);
     i += sizeMod;
@@ -513,30 +518,29 @@ void Monitor::FillHist(int size)
     i += sizeTrace;
 
     // Reject the overflow events
-    if(data.ModNumber >= 0 && data.ModNumber < kgMods &&
-       data.ChNumber >= 0 && data.ChNumber < kgChs &&
-       data.ChargeLong < (1 << 15)){
+    if (data.ModNumber >= 0 && data.ModNumber < kgMods && data.ChNumber >= 0 &&
+        data.ChNumber < kgChs && data.ChargeLong < (1 << 15)) {
       auto ene = fCalFnc[data.ModNumber][data.ChNumber]->Eval(data.ChargeLong);
       fHist[data.ModNumber][data.ChNumber]->Fill(ene);
       fHistADC[data.ModNumber][data.ChNumber]->Fill(data.ChargeLong);
       fEventCounter[data.ModNumber][data.ChNumber]++;
-      
-      for(auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
-	fSignal[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint, data.Trace1[iPoint]);
+
+      for (auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
+        fSignal[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint,
+                                                         data.Trace1[iPoint]);
     }
   }
-  
 }
 
 void Monitor::ResetHists()
 {
-  for(auto &&brd: fHist) {
-    for(auto &&ch: brd) {
+  for (auto &&brd : fHist) {
+    for (auto &&ch : brd) {
       ch->Reset();
     }
   }
-  for(auto &&brd: fHistADC) {
-    for(auto &&ch: brd) {
+  for (auto &&brd : fHistADC) {
+    for (auto &&ch : brd) {
       ch->Reset();
     }
   }
@@ -547,31 +551,31 @@ void Monitor::DumpHists()
   std::cout << "Dump ASCII files" << std::endl;
   auto now = time(nullptr);
   auto runNo = get_run_number();
-  std::string dirName = "/tmp/daqmw/run" + std::to_string(runNo) + "_" + std::to_string(now);
+  std::string dirName =
+      "/tmp/daqmw/run" + std::to_string(runNo) + "_" + std::to_string(now);
   mkdir(dirName.c_str(), 0777);
 
-  for(auto iBrd = 0; iBrd < kgMods; iBrd++) {
-    for(auto iCh = 0; iCh < kgChs; iCh++) {
+  for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
+    for (auto iCh = 0; iCh < kgChs; iCh++) {
       auto fileName = dirName + "/" + Form("Brd%02dCh%02d.txt", iBrd, iCh);
       std::cout << fileName << std::endl;
       std::ofstream fout(fileName);
 
       const auto nBins = fHist[iBrd][iCh]->GetNbinsX();
-      for(auto iBin = 1; iBin <= nBins; iBin++) {
-	fout << fHist[iBrd][iCh]->GetBinCenter(iBin) <<"\t"
-	     << fHist[iBrd][iCh]->GetBinContent(iBin) <<"\n";
+      for (auto iBin = 1; iBin <= nBins; iBin++) {
+        fout << fHist[iBrd][iCh]->GetBinCenter(iBin) << "\t"
+             << fHist[iBrd][iCh]->GetBinContent(iBin) << "\n";
       }
       // fout << std::endl;
       fout.close();
     }
   }
-
 }
 
 void Monitor::UploadEventRate(int timeDuration)
 {
-  for(auto &&brd: fEventCounter) {
-    for(auto &&ch: brd) {
+  for (auto &&brd : fEventCounter) {
+    for (auto &&ch : brd) {
       ch /= timeDuration;
     }
   }
@@ -582,40 +586,35 @@ void Monitor::UploadEventRate(int timeDuration)
   auto now = time(nullptr);
   constexpr int nMods = kgMods;
   constexpr int nChs = kgChs;
-  for(auto mod = 0; mod < nMods; mod++){
-    for(auto ch = 0; ch < nChs; ch++){
+  for (auto mod = 0; mod < nMods; mod++) {
+    for (auto ch = 0; ch < nChs; ch++) {
       auto eventRate = fEventCounter[mod][ch];
-      
-      try{
-	influxdb_cpp::builder()
-	  .meas("ifin")
-	  .tag("ch", std::to_string(ch))
-	  .tag("mod", std::to_string(mod))
-	  .field("rate", eventRate)
-	  .timestamp(now * 1000000000)
-	  .post_http(server, &resp);
+
+      try {
+        influxdb_cpp::builder()
+            .meas("ifin")
+            .tag("ch", std::to_string(ch))
+            .tag("mod", std::to_string(mod))
+            .field("rate", eventRate)
+            .timestamp(now * 1000000000)
+            .post_http(server, &resp);
       } catch (const std::exception &e) {
-	std::cout << e.what() <<"\n"<< resp << std::endl;
+        std::cout << e.what() << "\n" << resp << std::endl;
       }
-      
     }
   }
-  
-  for(auto &&brd: fEventCounter) {
-    for(auto &&ch: brd) {
+
+  for (auto &&brd : fEventCounter) {
+    for (auto &&ch : brd) {
       ch = 0;
     }
   }
-  
 }
 
-extern "C"
+extern "C" {
+void MonitorInit(RTC::Manager *manager)
 {
-  void MonitorInit(RTC::Manager* manager)
-  {
-    RTC::Properties profile(monitor_spec);
-    manager->registerFactory(profile,
-			     RTC::Create<Monitor>,
-			     RTC::Delete<Monitor>);
-  }
+  RTC::Properties profile(monitor_spec);
+  manager->registerFactory(profile, RTC::Create<Monitor>, RTC::Delete<Monitor>);
+}
 };
