@@ -55,8 +55,8 @@ static const char *monitor_spec[] = {"implementation_id",
 // This factor is for fitting
 constexpr auto kBGRange = 2.5;
 constexpr auto kFitRange = 5.;
-Double_t FitFnc(Double_t *pos,
-                Double_t *par) {  // This should be class not function.
+Double_t FitFnc(Double_t *pos, Double_t *par)
+{  // This should be class not function.
   const auto x = pos[0];
   const auto mean = par[1];
   const auto sigma = par[2];
@@ -86,7 +86,8 @@ Double_t FitFnc(Double_t *pos,
 }
 
 // For CURL
-size_t CallbackFunc(char *ptr, size_t size, size_t nmemb, std::string *stream) {
+size_t CallbackFunc(char *ptr, size_t size, size_t nmemb, std::string *stream)
+{
   int dataLength = size * nmemb;
   if (ptr != nullptr) stream->assign(ptr, dataLength);
   return dataLength;
@@ -103,7 +104,8 @@ Monitor::Monitor(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
       m_InPort("monitor_in", m_in_data),
       m_in_status(BUF_SUCCESS),
-      m_debug(false) {
+      m_debug(false)
+{
   // Registration: InPort/OutPort/Service
 
   // Set InPort buffers
@@ -145,7 +147,8 @@ Monitor::Monitor(RTC::Manager *manager)
 
 Monitor::~Monitor() { curl_easy_cleanup(fCurl); }
 
-RTC::ReturnCode_t Monitor::onInitialize() {
+RTC::ReturnCode_t Monitor::onInitialize()
+{
   if (m_debug) {
     std::cerr << "Monitor::onInitialize()" << std::endl;
   }
@@ -153,18 +156,21 @@ RTC::ReturnCode_t Monitor::onInitialize() {
   return RTC::RTC_OK;
 }
 
-RTC::ReturnCode_t Monitor::onExecute(RTC::UniqueId ec_id) {
+RTC::ReturnCode_t Monitor::onExecute(RTC::UniqueId ec_id)
+{
   daq_do();
 
   return RTC::RTC_OK;
 }
 
-int Monitor::daq_dummy() {
+int Monitor::daq_dummy()
+{
   gSystem->ProcessEvents();
   return 0;
 }
 
-int Monitor::daq_configure() {
+int Monitor::daq_configure()
+{
   std::cerr << "*** Monitor::configure" << std::endl;
 
   ::NVList *paramList;
@@ -236,10 +242,10 @@ int Monitor::daq_configure() {
       fHistADC[iBrd][iCh]->SetXTitle("ADC channel");
 
       TString grName = Form("signal%02d_%02d", iBrd, iCh);
-      fSignal[iBrd][iCh].reset(new TGraph());
-      fSignal[iBrd][iCh]->SetNameTitle(grName, histTitle);
-      fSignal[iBrd][iCh]->SetMinimum(0);
-      fSignal[iBrd][iCh]->SetMaximum(18000);
+      fWaveform[iBrd][iCh].reset(new TGraph());
+      fWaveform[iBrd][iCh]->SetNameTitle(grName, histTitle);
+      fWaveform[iBrd][iCh]->SetMinimum(0);
+      fWaveform[iBrd][iCh]->SetMaximum(18000);
     }
   }
 
@@ -248,7 +254,8 @@ int Monitor::daq_configure() {
   return 0;
 }
 
-void Monitor::RegisterHists() {
+void Monitor::RegisterHists()
+{
   if (fSignalListFile != "")
     RegisterDetectors(fSignalListFile, "/CalibratedSignal", "/RawSignal");
   if (fBGOListFile != "")
@@ -259,13 +266,14 @@ void Monitor::RegisterHists() {
     for (auto iCh = 0; iCh < kgChs; iCh++) {
       fServ->Register(regDirectory, fHist[iBrd][iCh].get());
       fServ->Register(regDirectory, fHistADC[iBrd][iCh].get());
-      // fServ->Register(regDirectory, fSignal[iBrd][iCh].get());
+      fServ->Register(regDirectory, fWaveform[iBrd][iCh].get());
     }
   }
 }
 
 void Monitor::RegisterDetectors(std::string fileName, std::string calDirName,
-                                std::string rawDirName) {
+                                std::string rawDirName)
+{
   if (fileName != "") {
     std::ifstream fin(fileName);
     if (fin.is_open()) {
@@ -305,7 +313,8 @@ void Monitor::RegisterDetectors(std::string fileName, std::string calDirName,
   }
 }
 
-int Monitor::parse_params(::NVList *list) {
+int Monitor::parse_params(::NVList *list)
+{
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
@@ -335,13 +344,15 @@ int Monitor::parse_params(::NVList *list) {
   return 0;
 }
 
-int Monitor::daq_unconfigure() {
+int Monitor::daq_unconfigure()
+{
   std::cerr << "*** Monitor::unconfigure" << std::endl;
 
   return 0;
 }
 
-int Monitor::daq_start() {
+int Monitor::daq_start()
+{
   std::cerr << "*** Monitor::start" << std::endl;
   m_in_status = BUF_SUCCESS;
 
@@ -357,26 +368,30 @@ int Monitor::daq_start() {
   return 0;
 }
 
-int Monitor::daq_stop() {
+int Monitor::daq_stop()
+{
   std::cerr << "*** Monitor::stop" << std::endl;
   reset_InPort();
 
   return 0;
 }
 
-int Monitor::daq_pause() {
+int Monitor::daq_pause()
+{
   std::cerr << "*** Monitor::pause" << std::endl;
 
   return 0;
 }
 
-int Monitor::daq_resume() {
+int Monitor::daq_resume()
+{
   std::cerr << "*** Monitor::resume" << std::endl;
 
   return 0;
 }
 
-int Monitor::reset_InPort() {
+int Monitor::reset_InPort()
+{
   int ret = true;
   while (ret == true) {
     ret = m_InPort.read();
@@ -385,7 +400,8 @@ int Monitor::reset_InPort() {
   return 0;
 }
 
-unsigned int Monitor::read_InPort() {
+unsigned int Monitor::read_InPort()
+{
   /////////////// read data from InPort Buffer ///////////////
   unsigned int recv_byte_size = 0;
   bool ret = m_InPort.read();
@@ -411,7 +427,8 @@ unsigned int Monitor::read_InPort() {
   return recv_byte_size;
 }
 
-int Monitor::daq_run() {
+int Monitor::daq_run()
+{
   if (m_debug) {
     std::cerr << "*** Monitor::run" << std::endl;
   }
@@ -463,7 +480,8 @@ int Monitor::daq_run() {
   return 0;
 }
 
-void Monitor::FillHist(int size) {
+void Monitor::FillHist(int size)
+{
   constexpr auto sizeMod = sizeof(PSDData::ModNumber);
   constexpr auto sizeCh = sizeof(PSDData::ChNumber);
   constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
@@ -511,13 +529,16 @@ void Monitor::FillHist(int size) {
       fEventCounter[data.ModNumber][data.ChNumber]++;
 
       for (auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
-        fSignal[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint,
-                                                         data.Trace1[iPoint]);
+        fWaveform[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint,
+                                                           data.Trace1[iPoint]);
+      fWaveform[data.ModNumber][data.ChNumber]->GetXaxis()->SetRange();
+      // fWaveform[data.ModNumber][data.ChNumber]->GetYaxis()->UnZoom();
     }
   }
 }
 
-void Monitor::ResetHists() {
+void Monitor::ResetHists()
+{
   for (auto &&brd : fHist) {
     for (auto &&ch : brd) {
       ch->Reset();
@@ -530,7 +551,8 @@ void Monitor::ResetHists() {
   }
 }
 
-void Monitor::DumpHists() {
+void Monitor::DumpHists()
+{
   std::cout << "Dump ASCII files" << std::endl;
   auto now = time(nullptr);
   auto runNo = get_run_number();
@@ -555,7 +577,8 @@ void Monitor::DumpHists() {
   }
 }
 
-void Monitor::UploadEventRate(int timeDuration) {
+void Monitor::UploadEventRate(int timeDuration)
+{
   for (auto &&brd : fEventCounter) {
     for (auto &&ch : brd) {
       ch /= timeDuration;
@@ -594,7 +617,8 @@ void Monitor::UploadEventRate(int timeDuration) {
 }
 
 extern "C" {
-void MonitorInit(RTC::Manager *manager) {
+void MonitorInit(RTC::Manager *manager)
+{
   RTC::Properties profile(monitor_spec);
   manager->registerFactory(profile, RTC::Create<Monitor>, RTC::Delete<Monitor>);
 }

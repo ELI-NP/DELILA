@@ -32,7 +32,8 @@ using namespace RTC;
 // Number of peaks for TSpectrum
 // constexpr int knPeaks = 8;
 
-class Monitor : public DAQMW::DaqComponentBase {
+class Monitor : public DAQMW::DaqComponentBase
+{
  public:
   Monitor(RTC::Manager *manager);
   ~Monitor();
@@ -76,7 +77,7 @@ class Monitor : public DAQMW::DaqComponentBase {
   static constexpr int kgChs = 16;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHist;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHistADC;
-  std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgMods> fSignal;
+  std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgMods> fWaveform;
   std::unique_ptr<THttpServer> fServ;
 
   void RegisterHists();

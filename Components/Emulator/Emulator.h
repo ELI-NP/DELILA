@@ -10,11 +10,13 @@
 #ifndef EMULATOR_H
 #define EMULATOR_H
 
+#include <TF1.h>
+
+#include <chrono>
 #include <deque>
 #include <memory>
-#include <string>
 #include <random>
-#include <chrono>
+#include <string>
 
 #include "../include/TDataContainer.hpp"
 #include "DaqComponentBase.h"
@@ -62,12 +64,17 @@ class Emulator : public DAQMW::DaqComponentBase
   bool m_debug;
 
   unsigned int fCounter = 0;
-  
+
   TDataContainer fDataContainer;
 
   std::mt19937_64 fRandom;
 
   int fNEvents;
+
+  void SetSignalGen(std::string source);
+  TF1 *fSignalGen;
+  std::uniform_int_distribution<> fAmplitudeGen;
+  int fNSamples;
 
   std::chrono::system_clock::time_point fStartTime;
 };

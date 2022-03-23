@@ -28,7 +28,7 @@ using DAQMW::FatalType::USER_DEFINED_ERROR1;
 
 // Module specification
 // Change following items to suit your component's spec.
-static const char* recorder_spec[] = {"implementation_id",
+static const char *recorder_spec[] = {"implementation_id",
                                       "Recorder",
                                       "type_name",
                                       "Recorder",
@@ -50,12 +50,13 @@ static const char* recorder_spec[] = {"implementation_id",
                                       "compile",
                                       ""};
 
-Recorder::Recorder(RTC::Manager* manager)
+Recorder::Recorder(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
       m_InPort("recorder_in", m_in_data),
       m_in_status(BUF_SUCCESS),
 
-      m_debug(false) {
+      m_debug(false)
+{
   // Registration: InPort/OutPort/Service
 
   // Set InPort buffers
@@ -88,7 +89,8 @@ Recorder::Recorder(RTC::Manager* manager)
 
 Recorder::~Recorder() {}
 
-RTC::ReturnCode_t Recorder::onInitialize() {
+RTC::ReturnCode_t Recorder::onInitialize()
+{
   if (m_debug) {
     std::cerr << "Recorder::onInitialize()" << std::endl;
   }
@@ -96,7 +98,8 @@ RTC::ReturnCode_t Recorder::onInitialize() {
   return RTC::RTC_OK;
 }
 
-RTC::ReturnCode_t Recorder::onExecute(RTC::UniqueId ec_id) {
+RTC::ReturnCode_t Recorder::onExecute(RTC::UniqueId ec_id)
+{
   daq_do();
 
   return RTC::RTC_OK;
@@ -104,10 +107,11 @@ RTC::ReturnCode_t Recorder::onExecute(RTC::UniqueId ec_id) {
 
 int Recorder::daq_dummy() { return 0; }
 
-int Recorder::daq_configure() {
+int Recorder::daq_configure()
+{
   std::cerr << "*** Recorder::configure" << std::endl;
 
-  ::NVList* paramList;
+  ::NVList *paramList;
   paramList = m_daq_service0.getCompParams();
   parse_params(paramList);
 
@@ -127,7 +131,8 @@ int Recorder::daq_configure() {
   return 0;
 }
 
-int Recorder::parse_params(::NVList* list) {
+int Recorder::parse_params(::NVList *list)
+{
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
@@ -149,13 +154,15 @@ int Recorder::parse_params(::NVList* list) {
   return 0;
 }
 
-int Recorder::daq_unconfigure() {
+int Recorder::daq_unconfigure()
+{
   std::cerr << "*** Recorder::unconfigure" << std::endl;
 
   return 0;
 }
 
-int Recorder::daq_start() {
+int Recorder::daq_start()
+{
   std::cerr << "*** Recorder::start" << std::endl;
 
   m_in_status = BUF_SUCCESS;
@@ -170,7 +177,8 @@ int Recorder::daq_start() {
   return 0;
 }
 
-int Recorder::daq_stop() {
+int Recorder::daq_stop()
+{
   std::cerr << "*** Recorder::stop" << std::endl;
   reset_InPort();
 
@@ -184,19 +192,22 @@ int Recorder::daq_stop() {
   return 0;
 }
 
-int Recorder::daq_pause() {
+int Recorder::daq_pause()
+{
   std::cerr << "*** Recorder::pause" << std::endl;
 
   return 0;
 }
 
-int Recorder::daq_resume() {
+int Recorder::daq_resume()
+{
   std::cerr << "*** Recorder::resume" << std::endl;
 
   return 0;
 }
 
-int Recorder::reset_InPort() {
+int Recorder::reset_InPort()
+{
   int ret = true;
   while (ret == true) {
     ret = m_InPort.read();
@@ -205,7 +216,8 @@ int Recorder::reset_InPort() {
   return 0;
 }
 
-unsigned int Recorder::read_InPort() {
+unsigned int Recorder::read_InPort()
+{
   /////////////// read data from InPort Buffer ///////////////
   unsigned int recv_byte_size = 0;
   bool ret = m_InPort.read();
@@ -231,7 +243,8 @@ unsigned int Recorder::read_InPort() {
   return recv_byte_size;
 }
 
-int Recorder::daq_run() {
+int Recorder::daq_run()
+{
   if (m_debug) {
     std::cerr << "*** Recorder::run" << std::endl;
   }
@@ -267,12 +280,14 @@ int Recorder::daq_run() {
   return 0;
 }
 
-void Recorder::ResetVec() {
+void Recorder::ResetVec()
+{
   fpDataVec.reset(new std::vector<TreeData>);
   fpDataVec->reserve(2 * fDataLimit / sizeof(TreeData));
 }
 
-int Recorder::FillData(unsigned int dataSize) {
+int Recorder::FillData(unsigned int dataSize)
+{
   // std::cout << dataSize << std::endl;
   constexpr auto sizeMod = sizeof(TreeData::Mod);
   constexpr auto sizeCh = sizeof(TreeData::Ch);
@@ -324,7 +339,8 @@ int Recorder::FillData(unsigned int dataSize) {
   return nHits;
 }
 
-void Recorder::EnqueueData() {
+void Recorder::EnqueueData()
+{
   fMutex.lock();
   fRawDataQueue.push_back(fpDataVec.release());
   fMutex.unlock();
@@ -332,7 +348,8 @@ void Recorder::EnqueueData() {
   ResetVec();
 }
 
-void Recorder::MakeTree() {
+void Recorder::MakeTree()
+{
   while (true) {
     fMutex.lock();
     auto nEntries = fRawDataQueue.size();
@@ -342,12 +359,11 @@ void Recorder::MakeTree() {
       fMutex.lock();
       auto dataVec = fRawDataQueue.front();
       auto tree = new TTree("ELIADE_Tree", "ELIADE data");
-      tree->SetDirectory(
-          nullptr);  // we need to clearly set directory as nullptr here
+      tree->SetDirectory(nullptr);
       fMutex.unlock();
 
       std::sort(dataVec->begin(), dataVec->end(),
-                [](const TreeData& a, const TreeData& b) {
+                [](const TreeData &a, const TreeData &b) {
                   return a.FineTS < b.FineTS;
                 });
 
@@ -396,7 +412,8 @@ void Recorder::MakeTree() {
   }
 }
 
-void Recorder::WriteFile() {
+void Recorder::WriteFile()
+{
   while (true) {
     fMutex.lock();
     auto nEntries = fTreeQueue.size();
@@ -424,7 +441,7 @@ void Recorder::WriteFile() {
 
       auto file = new TFile(fileName, "NEW");
       tree->SetDirectory(file);
-      // tree->Write();
+      tree->Write();
 
       std::cout << "\nFinished data writing: " << fileName << "\n"
                 << "Number of events in " << fileName << ": "
@@ -441,7 +458,8 @@ void Recorder::WriteFile() {
 }
 
 extern "C" {
-void RecorderInit(RTC::Manager* manager) {
+void RecorderInit(RTC::Manager *manager)
+{
   RTC::Properties profile(recorder_spec);
   manager->registerFactory(profile, RTC::Create<Recorder>,
                            RTC::Delete<Recorder>);

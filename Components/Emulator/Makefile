@@ -4,18 +4,13 @@ all: $(COMP_NAME)Comp
 
 SRCS += $(COMP_NAME).cpp
 SRCS += $(COMP_NAME)Comp.cpp
-SRCS += ../../TDigiTES/src/BoardUtils.cpp
-SRCS += ../../TDigiTES/src/Configure.cpp
-SRCS += ../../TDigiTES/src/Console.cpp
-SRCS += ../../TDigiTES/src/digiTES.cpp
-SRCS += ../../TDigiTES/src/ParamParser.cpp
-SRCS += ../../TDigiTES/src/TDigiTes.cpp
-SRCS += ../../TDigiTES/src/TPHA.cpp
-SRCS += ../../TDigiTES/src/TPSD.cpp
 SRCS += ../src/TDataContainer.cpp
 
 LDLIBS += -lCAENDigitizer
-CPPFLAGS += -std=c++11 -I../../TDigiTES/include -I../include
+CPPFLAGS += -I../../TDigiTES/include -I../include
+
+LDFLAGS += $(shell root-config --glibs)
+CPPFLAGS += -I$(shell root-config --incdir)
 
 # sample install target
 #

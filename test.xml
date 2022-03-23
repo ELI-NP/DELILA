@@ -27,6 +27,7 @@
           </outPorts>
           <params>
 	    <param pid="NEvents">1024</param>
+	    <param pid="Signal">Ge</param>
 	  </params>
         </component>
         <component cid="Merger0">

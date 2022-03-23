@@ -41,6 +41,28 @@ static const char *emulator_spec[] = {"implementation_id",
                                       "compile",
                                       ""};
 
+Double_t DoubleExp(Double_t *point, Double_t *par)
+{
+  Double_t t = point[0];
+
+  Double_t I0 = par[0];
+  Double_t t0e = par[1];
+
+  Double_t tau = par[2];
+  Double_t t0x = par[3];
+  Double_t l1 = par[4];
+  Double_t l2 = par[5];
+  Double_t eta = par[6];
+  Double_t offset = par[7];
+
+  Double_t result =
+      0.5 * I0 * (1 + TMath::Erf((t - t0e) / tau)) *
+          (((1 - eta) * exp((t0x - t) / l1)) + (eta * exp((t0x - t) / l2))) +
+      offset;
+
+  return result;
+}
+
 Emulator::Emulator(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
       m_OutPort("emulator_out", m_out_data),
@@ -62,6 +84,9 @@ Emulator::Emulator(RTC::Manager *manager)
   fRandom.seed(seedGen());
 
   fNEvents = 1000;
+
+  fSignalGen = nullptr;
+  fNSamples = 0;
 }
 
 Emulator::~Emulator() {}
@@ -109,6 +134,8 @@ int Emulator::parse_params(::NVList *list)
 
     if (sname == "NEvents") {
       fNEvents = std::stoi(svalue);
+    } else if (sname == "Signal") {
+      SetSignalGen(svalue);
     }
   }
 
@@ -198,7 +225,7 @@ int Emulator::read_data_from_detectors()
       data.FineTS = randDouble(fRandom);
       data.ChargeLong = randGaussian(fRandom);
       data.ChargeShort = randGaussian(fRandom);
-      data.RecordLength = 0;
+      data.RecordLength = fNSamples;
 
       const auto oneHitSize = sizeMod + sizeCh + sizeTS + sizeFineTS +
                               sizeLong + sizeShort + sizeRL +
@@ -238,6 +265,12 @@ int Emulator::read_data_from_detectors()
 
       if (data.RecordLength > 0) {
         const auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
+        data.Trace1.resize(data.RecordLength);
+        fSignalGen->SetParameter(0, fAmplitudeGen(fRandom));
+        for (auto iSample = 0; iSample < fNSamples; iSample++) {
+          constexpr auto deltaT = 2;
+          data.Trace1[iSample] = fSignalGen->Eval(iSample * deltaT);
+        }
         memcpy(&hit[index], &(data.Trace1[0]), sizeTrace);
         index += sizeTrace;
         received_data_size += sizeTrace;
@@ -333,6 +366,43 @@ int Emulator::daq_run()
   }
 
   return 0;
+}
+
+void Emulator::SetSignalGen(std::string source)
+{
+  fSignalGen = new TF1("GeFnc", DoubleExp, 0, 8000, 8);
+  fSignalGen->SetParName(0, "#it{I0}");
+  fSignalGen->SetParName(1, "#it{t_{0e}}");
+  fSignalGen->SetParName(2, "#it{#tau}");
+  fSignalGen->SetParName(3, "#it{t_{0x}}");
+  fSignalGen->SetParName(4, "#it{#lambda_{1}}");
+  fSignalGen->SetParName(5, "#it{#lambda_{2}}");
+  fSignalGen->SetParName(6, "#it{#eta}");
+  fSignalGen->SetParName(7, "offset");
+
+  if (source == "PMT") {
+    fSignalGen->SetParameter(0, -100000);
+    fSignalGen->SetParameter(1, 200);
+    fSignalGen->SetParameter(2, 30);
+    fSignalGen->SetParameter(3, 60);
+    fSignalGen->SetParameter(4, 50);
+    fSignalGen->SetParameter(5, 100);
+    fSignalGen->SetParameter(6, 0.5);
+    fSignalGen->SetParameter(7, 14000);
+    fNSamples = 512;
+    fAmplitudeGen = std::uniform_int_distribution<>(-100000, -10000);
+  } else if (source == "Ge" || source == "HPGe") {
+    fSignalGen->SetParameter(0, 8000);
+    fSignalGen->SetParameter(1, 1000);
+    fSignalGen->SetParameter(2, 100);
+    fSignalGen->SetParameter(3, 1000);
+    fSignalGen->SetParameter(4, 10000);
+    fSignalGen->SetParameter(5, 5000);
+    fSignalGen->SetParameter(6, 0.5);
+    fSignalGen->SetParameter(7, 2000);
+    fNSamples = 4000;
+    fAmplitudeGen = std::uniform_int_distribution<>(2000, 10000);
+  }
 }
 
 extern "C" {
