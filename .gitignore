@@ -3,6 +3,7 @@
 *.o
 autogen
 *Comp
+.vscode
 omninames*
 rtc.conf
 .depend
