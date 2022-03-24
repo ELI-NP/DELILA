@@ -217,7 +217,8 @@ int Emulator::read_data_from_detectors()
   std::uniform_real_distribution<> randDouble(0., DBL_MAX);
   std::normal_distribution<> randGaussian(1000.0, 100.0);
 
-  if (doOrNot(fRandom) == 0) {
+  // if (doOrNot(fRandom) == 0) {
+  if (true) {
     for (auto i = 0; i < fNEvents; i++) {
       data.Mod = rand8(fRandom);
       data.Ch = rand16(fRandom);
@@ -345,7 +346,7 @@ int Emulator::daq_run()
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
+    if (fDataContainer.GetSize() == 0) {
       fCounter = 0;
       read_data_from_detectors();
     }

@@ -7,25 +7,27 @@
  *
  */
 
-#ifndef EMULATOR_H
-#define EMULATOR_H
+#ifndef PULSER_H
+#define PULSER_H
 
+#include <TF1.h>
+
+#include <chrono>
 #include <deque>
 #include <memory>
-#include <string>
 #include <random>
-#include <chrono>
+#include <string>
 
 #include "../include/TDataContainer.hpp"
 #include "DaqComponentBase.h"
 
 using namespace RTC;
 
-class Test : public DAQMW::DaqComponentBase
+class Pulser : public DAQMW::DaqComponentBase
 {
  public:
-  Test(RTC::Manager *manager);
-  ~Test();
+  Pulser(RTC::Manager *manager);
+  ~Pulser();
 
   // The initialize action (on CREATED->ALIVE transition)
   // former rtc_init_entry()
@@ -62,18 +64,23 @@ class Test : public DAQMW::DaqComponentBase
   bool m_debug;
 
   unsigned int fCounter = 0;
-  
+
   TDataContainer fDataContainer;
 
   std::mt19937_64 fRandom;
 
   int fNEvents;
 
+  void SetSignalGen(std::string source);
+  TF1 *fSignalGen;
+  std::uniform_int_distribution<> fAmplitudeGen;
+  int fNSamples;
+
   std::chrono::system_clock::time_point fStartTime;
 };
 
 extern "C" {
-void TestInit(RTC::Manager *manager);
+void PulserInit(RTC::Manager *manager);
 };
 
-#endif  // EMULATOR_H
+#endif  // PULSER_H

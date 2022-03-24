@@ -6,7 +6,7 @@
  * @author
  *
  */
-#include "Test.h"
+#include "Pulser.h"
 
 #include <cfloat>
 #include <climits>
@@ -19,70 +19,99 @@ using DAQMW::FatalType::USER_DEFINED_ERROR1;
 
 // Module specification
 // Change following items to suit your component's spec.
-static const char *emulator_spec[] = {"implementation_id",
-                                      "Test",
-                                      "type_name",
-                                      "Test",
-                                      "description",
-                                      "Test component",
-                                      "version",
-                                      "1.0",
-                                      "vendor",
-                                      "Kazuo Nakayoshi, KEK",
-                                      "category",
-                                      "example",
-                                      "activity_type",
-                                      "DataFlowComponent",
-                                      "max_instance",
-                                      "1",
-                                      "language",
-                                      "C++",
-                                      "lang_type",
-                                      "compile",
-                                      ""};
+static const char *pulser_spec[] = {"implementation_id",
+                                    "Pulser",
+                                    "type_name",
+                                    "Pulser",
+                                    "description",
+                                    "Pulser component",
+                                    "version",
+                                    "1.0",
+                                    "vendor",
+                                    "Kazuo Nakayoshi, KEK",
+                                    "category",
+                                    "example",
+                                    "activity_type",
+                                    "DataFlowComponent",
+                                    "max_instance",
+                                    "1",
+                                    "language",
+                                    "C++",
+                                    "lang_type",
+                                    "compile",
+                                    ""};
 
-Test::Test(RTC::Manager *manager)
+Double_t DoubleExp(Double_t *point, Double_t *par)
+{
+  Double_t t = point[0];
+
+  Double_t I0 = par[0];
+  Double_t t0e = par[1];
+
+  Double_t tau = par[2];
+  Double_t t0x = par[3];
+  Double_t l1 = par[4];
+  Double_t l2 = par[5];
+  Double_t eta = par[6];
+  Double_t offset = par[7];
+
+  Double_t result =
+      0.5 * I0 * (1 + TMath::Erf((t - t0e) / tau)) *
+          (((1 - eta) * exp((t0x - t) / l1)) + (eta * exp((t0x - t) / l2))) +
+      offset;
+
+  return result;
+}
+
+Pulser::Pulser(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
-      m_OutPort("emulator_out", m_out_data),
+      m_OutPort("pulser_out", m_out_data),
       m_recv_byte_size(0),
       m_out_status(BUF_SUCCESS),
 
-      m_debug(true) {
+      m_debug(true)
+{
   // Registration: InPort/OutPort/Service
 
   // Set OutPort buffers
-  registerOutPort("emulator_out", m_OutPort);
+  registerOutPort("pulser_out", m_OutPort);
 
   init_command_port();
   init_state_table();
-  set_comp_name("EMULATOR");
+  set_comp_name("PULSER");
 
   std::random_device seedGen;
   fRandom.seed(seedGen());
 
   fNEvents = 1000;
+
+  fSignalGen = nullptr;
+  fNSamples = 0;
 }
 
-Test::~Test() {}
+Pulser::~Pulser() {}
 
-RTC::ReturnCode_t Test::onInitialize() {
+RTC::ReturnCode_t Pulser::onInitialize()
+{
   if (m_debug) {
-    std::cerr << "Test::onInitialize()" << std::endl;
+    std::cerr << "Pulser::onInitialize()" << std::endl;
   }
 
   return RTC::RTC_OK;
 }
 
-RTC::ReturnCode_t Test::onExecute(RTC::UniqueId ec_id) {
+RTC::ReturnCode_t Pulser::onExecute(RTC::UniqueId ec_id)
+{
   daq_do();
 
   return RTC::RTC_OK;
 }
 
-int Test::daq_dummy() { return 0; }
+int Pulser::daq_dummy() { return 0; }
 
-int Test::daq_configure() {
-  std::cerr << "*** Test::configure" << std::endl;
+int Pulser::daq_configure()
+{
+  std::cerr << "*** Pulser::configure" << std::endl;
 
   ::NVList *paramList;
   paramList = m_daq_service0.getCompParams();
@@ -91,7 +120,8 @@ int Test::daq_configure() {
   return 0;
 }
 
-int Test::parse_params(::NVList *list) {
+int Pulser::parse_params(::NVList *list)
+{
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
   int len = (*list).length();
@@ -104,20 +134,24 @@ int Test::parse_params(::NVList *list) {
 
     if (sname == "NEvents") {
       fNEvents = std::stoi(svalue);
+    } else if (sname == "Signal") {
+      SetSignalGen(svalue);
     }
   }
 
   return 0;
 }
 
-int Test::daq_unconfigure() {
-  std::cerr << "*** Test::unconfigure" << std::endl;
+int Pulser::daq_unconfigure()
+{
+  std::cerr << "*** Pulser::unconfigure" << std::endl;
 
   return 0;
 }
 
-int Test::daq_start() {
-  std::cerr << "*** Test::start" << std::endl;
+int Pulser::daq_start()
+{
+  std::cerr << "*** Pulser::start" << std::endl;
 
   m_out_status = BUF_SUCCESS;
 
@@ -128,8 +162,9 @@ int Test::daq_start() {
   return 0;
 }
 
-int Test::daq_stop() {
-  std::cerr << "*** Test::stop" << std::endl;
+int Pulser::daq_stop()
+{
+  std::cerr << "*** Pulser::stop" << std::endl;
 
   auto stopTime = std::chrono::system_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -143,19 +178,22 @@ int Test::daq_stop() {
   return 0;
 }
 
-int Test::daq_pause() {
-  std::cerr << "*** Test::pause" << std::endl;
+int Pulser::daq_pause()
+{
+  std::cerr << "*** Pulser::pause" << std::endl;
 
   return 0;
 }
 
-int Test::daq_resume() {
-  std::cerr << "*** Test::resume" << std::endl;
+int Pulser::daq_resume()
+{
+  std::cerr << "*** Pulser::resume" << std::endl;
 
   return 0;
 }
 
-int Test::read_data_from_detectors() {
+int Pulser::read_data_from_detectors()
+{
   if (m_debug) {
     std::cerr << "Generate data" << std::endl;
   }
@@ -179,7 +217,8 @@ int Test::read_data_from_detectors() {
   std::uniform_real_distribution<> randDouble(0., DBL_MAX);
   std::normal_distribution<> randGaussian(1000.0, 100.0);
 
-  if (doOrNot(fRandom) == 0) {
+  // if (doOrNot(fRandom) == 0) {
+  if (true) {
     for (auto i = 0; i < fNEvents; i++) {
       data.Mod = rand8(fRandom);
       data.Ch = rand16(fRandom);
@@ -187,7 +226,7 @@ int Test::read_data_from_detectors() {
       data.FineTS = randDouble(fRandom);
       data.ChargeLong = randGaussian(fRandom);
       data.ChargeShort = randGaussian(fRandom);
-      data.RecordLength = 0;
+      data.RecordLength = fNSamples;
 
       const auto oneHitSize = sizeMod + sizeCh + sizeTS + sizeFineTS +
                               sizeLong + sizeShort + sizeRL +
@@ -227,6 +266,12 @@ int Test::read_data_from_detectors() {
 
       if (data.RecordLength > 0) {
         const auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
+        data.Trace1.resize(data.RecordLength);
+        fSignalGen->SetParameter(0, fAmplitudeGen(fRandom));
+        for (auto iSample = 0; iSample < fNSamples; iSample++) {
+          constexpr auto deltaT = 2;
+          data.Trace1[iSample] = fSignalGen->Eval(iSample * deltaT);
+        }
         memcpy(&hit[index], &(data.Trace1[0]), sizeTrace);
         index += sizeTrace;
         received_data_size += sizeTrace;
@@ -243,7 +288,8 @@ int Test::read_data_from_detectors() {
   return received_data_size;
 }
 
-int Test::set_data() {
+int Pulser::set_data()
+{
   unsigned char header[8];
   unsigned char footer[8];
 
@@ -262,9 +308,10 @@ int Test::set_data() {
   return packet.size();
 }
 
-int Test::write_OutPort() {
+int Pulser::write_OutPort()
+{
   if (m_debug) {
-    std::cerr << "*** Test::write_Outport" << std::endl;
+    std::cerr << "*** Pulser::write_Outport" << std::endl;
   }
   ////////////////// send data from OutPort  //////////////////
   bool ret = m_OutPort.write();
@@ -285,9 +332,10 @@ int Test::write_OutPort() {
   return 0;
 }
 
-int Test::daq_run() {
+int Pulser::daq_run()
+{
   if (m_debug) {
-    std::cerr << "*** Test::run" << std::endl;
+    std::cerr << "*** Pulser::run" << std::endl;
   }
 
   if (check_trans_lock()) {  // check if stop command has come
@@ -298,16 +346,10 @@ int Test::daq_run() {
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
+    if (fDataContainer.GetSize() == 0) {
       fCounter = 0;
       read_data_from_detectors();
     }
-    // std::cout << fDataContainer.GetSize() << std::endl;
-    // if (fDataContainer.GetSize() > 0) {
-    //   sentDataSize = set_data();  // set data to OutPort Buffer
-    // } else {
-    //   return 0;
-    // }
     sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
@@ -318,7 +360,7 @@ int Test::daq_run() {
 
   if (write_OutPort() < 0) {
     std::cout << m_out_status << std::endl;
-    // } else if (sentDataSize > 0) {        // OutPort write successfully done
+    // } else if (sentDataSize > 0) {  // OutPort write successfully done
   } else {                              // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.
     inc_total_data_size(sentDataSize);  // increase total data byte size
@@ -327,10 +369,47 @@ int Test::daq_run() {
   return 0;
 }
 
+void Pulser::SetSignalGen(std::string source)
+{
+  fSignalGen = new TF1("GeFnc", DoubleExp, 0, 8000, 8);
+  fSignalGen->SetParName(0, "#it{I0}");
+  fSignalGen->SetParName(1, "#it{t_{0e}}");
+  fSignalGen->SetParName(2, "#it{#tau}");
+  fSignalGen->SetParName(3, "#it{t_{0x}}");
+  fSignalGen->SetParName(4, "#it{#lambda_{1}}");
+  fSignalGen->SetParName(5, "#it{#lambda_{2}}");
+  fSignalGen->SetParName(6, "#it{#eta}");
+  fSignalGen->SetParName(7, "offset");
+
+  if (source == "PMT") {
+    fSignalGen->SetParameter(0, -100000);
+    fSignalGen->SetParameter(1, 200);
+    fSignalGen->SetParameter(2, 30);
+    fSignalGen->SetParameter(3, 60);
+    fSignalGen->SetParameter(4, 50);
+    fSignalGen->SetParameter(5, 100);
+    fSignalGen->SetParameter(6, 0.5);
+    fSignalGen->SetParameter(7, 14000);
+    fNSamples = 512;
+    fAmplitudeGen = std::uniform_int_distribution<>(-100000, -10000);
+  } else if (source == "Ge" || source == "HPGe") {
+    fSignalGen->SetParameter(0, 8000);
+    fSignalGen->SetParameter(1, 1000);
+    fSignalGen->SetParameter(2, 100);
+    fSignalGen->SetParameter(3, 1000);
+    fSignalGen->SetParameter(4, 10000);
+    fSignalGen->SetParameter(5, 5000);
+    fSignalGen->SetParameter(6, 0.5);
+    fSignalGen->SetParameter(7, 2000);
+    fNSamples = 4000;
+    fAmplitudeGen = std::uniform_int_distribution<>(2000, 10000);
+  }
+}
+
 extern "C" {
-void TestInit(RTC::Manager *manager) {
-  RTC::Properties profile(emulator_spec);
-  manager->registerFactory(profile, RTC::Create<Test>,
-                           RTC::Delete<Test>);
+void PulserInit(RTC::Manager *manager)
+{
+  RTC::Properties profile(pulser_spec);
+  manager->registerFactory(profile, RTC::Create<Pulser>, RTC::Delete<Pulser>);
 }
 };

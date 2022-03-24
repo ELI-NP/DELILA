@@ -1,6 +1,6 @@
 // -*- C++ -*-
 /*!
- * @file 
+ * @file
  * @brief
  * @date
  * @author
@@ -10,28 +10,26 @@
 #ifndef RECORDER_H
 #define RECORDER_H
 
+#include <TString.h>
+#include <TTree.h>
+
+#include <deque>
 #include <memory>
-#include <string>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
-#include <deque>
 
-#include <TTree.h>
-#include <TString.h>
-
-#include "DaqComponentBase.h"
-
-#include "TreeData.h"
 #include "../../TDigiTES/include/TPSDData.hpp"
+#include "DaqComponentBase.h"
+#include "TreeData.h"
 
 using namespace RTC;
 
-class Recorder
-  : public DAQMW::DaqComponentBase
+class Recorder : public DAQMW::DaqComponentBase
 {
-public:
-  Recorder(RTC::Manager* manager);
+ public:
+  Recorder(RTC::Manager *manager);
   ~Recorder();
 
   // The initialize action (on CREATED->ALIVE transition)
@@ -42,11 +40,11 @@ public:
   // former rtc_active_do()
   virtual RTC::ReturnCode_t onExecute(RTC::UniqueId ec_id);
 
-private:
-  TimedOctetSeq          m_in_data;
-  InPort<TimedOctetSeq>  m_InPort;
+ private:
+  TimedOctetSeq m_in_data;
+  InPort<TimedOctetSeq> m_InPort;
 
-private:
+ private:
   int daq_dummy();
   int daq_configure();
   int daq_unconfigure();
@@ -56,7 +54,7 @@ private:
   int daq_pause();
   int daq_resume();
 
-  int parse_params(::NVList* list);
+  int parse_params(::NVList *list);
   int reset_InPort();
 
   unsigned int read_InPort();
@@ -69,7 +67,7 @@ private:
 
   TString fOutputDir;
   TString fHostName;
-  
+
   double fDataSize;
   double fDataLimit;
 
@@ -94,10 +92,8 @@ private:
   std::mutex fMutex;
 };
 
-
-extern "C"
-{
-  void RecorderInit(RTC::Manager* manager);
+extern "C" {
+void RecorderInit(RTC::Manager *manager);
 };
 
-#endif // RECORDER_H
+#endif  // RECORDER_H

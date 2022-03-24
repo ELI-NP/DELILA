@@ -23,6 +23,7 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../../TDigiTES/include/TPHAData.hpp"
 #include "DaqComponentBase.h"
@@ -89,6 +90,7 @@ class Monitor : public DAQMW::DaqComponentBase
   // Event rate uploading
   void UploadEventRate(int timeDuration);
   std::array<std::array<int, kgChs>, kgMods> fEventCounter;
+  std::unique_ptr<TGraph> fGrEveRate;
   long fLastCountTime;
   std::string fEveRateServer;
 

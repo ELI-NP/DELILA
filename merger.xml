@@ -13,20 +13,20 @@
   <daqGroups>
     <daqGroup gid="group0">
       <components>
-	<component cid="Test0">
+	<component cid="Pulser0">
           <hostAddr>127.0.0.1</hostAddr>
           <hostPort>50000</hostPort>
-          <instName>Test0.rtc</instName>
-          <execPath>/home/aogaki/DELILA/Components/Test/TestComp</execPath>
+          <instName>Pulser0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/Pulser/PulserComp</execPath>
           <confFile>/tmp/daqmw/rtc.conf</confFile>
           <startOrd>5</startOrd>
           <inPorts>
           </inPorts>
           <outPorts>
-            <outPort>test_out</outPort>
+            <outPort>pulser_out</outPort>
           </outPorts>
           <params>
-	    <param pid="NEvents">1024</param>
+	    <param pid="NEvents">10</param>
 	    <param pid="Signal">PMT</param>
 	  </params>
         </component>
@@ -43,10 +43,10 @@
             <outPort>emulator_out</outPort>
           </outPorts>
           <params>
-	    <param pid="NEvents">1024</param>
+	    <param pid="NEvents">10</param>
 	    <param pid="Signal">PMT</param>
 	  </params>
-        </component>
+        </component> 
         <component cid="Dispatcher0">
           <hostAddr>127.0.0.1</hostAddr>
           <hostPort>50000</hostPort>
@@ -55,12 +55,12 @@
           <confFile>/tmp/daqmw/rtc.conf</confFile>
           <startOrd>3</startOrd>
           <inPorts>
-	    <inPort from="Test0:test_out"
-		    buffer_length="256"
-		    buffer_read_timeout="0.1">dispatcher_in0</inPort>
-	    <inPort from="Emulator0:emulator_out"
+	    <inPort from="Pulser0:pulser_out"
 		    buffer_length="256"
 		    buffer_read_timeout="0.1">dispatcher_in1</inPort>
+	    <inPort from="Emulator0:emulator_out"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">dispatcher_in2</inPort>
           </inPorts>
           <outPorts>
             <outPort>dispatcher_out1</outPort>

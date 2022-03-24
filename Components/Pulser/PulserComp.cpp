@@ -10,15 +10,15 @@
 #include <rtm/Manager.h>
 #include <iostream>
 #include <string>
-#include "Test.h"
+#include "Pulser.h"
 
 void MyModuleInit(RTC::Manager* manager)
 {
-    TestInit(manager);
+    PulserInit(manager);
     RTC::RtcBase* comp;
 
     // Create a component
-    comp = manager->createComponent("Test");
+    comp = manager->createComponent("Pulser");
 
     // Example
     // The following procedure is examples how handle RT-Components.

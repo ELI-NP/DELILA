@@ -51,9 +51,9 @@ Merger::Merger(RTC::Manager *manager)
 
   for (auto i = 0; i < fNIn; i++) {
     auto name = "merger_in" + std::to_string(i);
-    fInStatusVec.emplace_back();
+    fInStatusVec.emplace_back(BUF_SUCCESS);
     fInDataVec.emplace_back();
-    fInPortVec.push_back(
+    fInPortVec.emplace_back(
         std::make_unique<InPort<TimedOctetSeq>>(name.c_str(), fInDataVec[i]));
     registerInPort(name.c_str(), *fInPortVec[i]);
   }
@@ -70,6 +70,7 @@ Merger::~Merger() {}
 
 void Merger::ReadInOutSettings()
 {
+  // Something to set these, arguments, read text file, access to DB or etc
   fNIn = 1;
   fNOut = 2;
 }
@@ -197,8 +198,10 @@ unsigned int Merger::ReadInPorts()
   unsigned int dataSize = 0;
 
   const int nPorts = fInPortVec.size();
-  for (auto iPort = 0; iPort < nPorts; iPort++) {
-    bool ret = fInPortVec[iPort]->read();
+  for (auto iPort = 1; iPort < nPorts; iPort++) {
+    std::cout << fInPortVec[iPort]->getName() << std::endl;
+
+    auto ret = fInPortVec[iPort]->read();
 
     if (ret == false) {  // false: TIMEOUT or FATAL
       fInStatusVec[iPort] = check_inPort_status(*fInPortVec[iPort]);

@@ -251,6 +251,11 @@ int Monitor::daq_configure()
 
   RegisterHists();
 
+  fGrEveRate.reset(new TGraph());
+  fGrEveRate->SetNameTitle("GrEveRate", "Total trigger count rate on monitor");
+  fGrEveRate->GetYaxis()->SetTitle("[cps]");
+  fServ->Register("/", fGrEveRate.get());
+
   return 0;
 }
 
@@ -451,7 +456,7 @@ int Monitor::daq_run()
   auto timeDiff = now - fLastCountTime;
   if (timeDiff >= uploadInterval) {
     fLastCountTime = now;
-    if (fEveRateServer != "") UploadEventRate(timeDiff);
+    UploadEventRate(timeDiff);
   }
 
   unsigned int recv_byte_size = read_InPort();
@@ -532,7 +537,7 @@ void Monitor::FillHist(int size)
         fWaveform[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint,
                                                            data.Trace1[iPoint]);
       fWaveform[data.ModNumber][data.ChNumber]->GetXaxis()->SetRange();
-      // fWaveform[data.ModNumber][data.ChNumber]->GetYaxis()->UnZoom();
+      // fWaveform[data.ModNumber][data.ChNumber]->GetYaxis()->SetRange(0, 18000);
     }
   }
 }
@@ -579,32 +584,42 @@ void Monitor::DumpHists()
 
 void Monitor::UploadEventRate(int timeDuration)
 {
+  int totalCountRate = 0;
   for (auto &&brd : fEventCounter) {
     for (auto &&ch : brd) {
       ch /= timeDuration;
+      totalCountRate += ch;
     }
   }
 
-  auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
+  fGrEveRate->AddPoint(time(nullptr), totalCountRate);
+  while (fGrEveRate->GetN() > 100) {
+    fGrEveRate->RemovePoint(0);
+  }
+  fGrEveRate->GetXaxis()->SetRange();
 
-  std::string resp;
-  auto now = time(nullptr);
-  constexpr int nMods = kgMods;
-  constexpr int nChs = kgChs;
-  for (auto mod = 0; mod < nMods; mod++) {
-    for (auto ch = 0; ch < nChs; ch++) {
-      auto eventRate = fEventCounter[mod][ch];
+  if (fEveRateServer != "") {
+    auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
 
-      try {
-        influxdb_cpp::builder()
-            .meas("ifin")
-            .tag("ch", std::to_string(ch))
-            .tag("mod", std::to_string(mod))
-            .field("rate", eventRate)
-            .timestamp(now * 1000000000)
-            .post_http(server, &resp);
-      } catch (const std::exception &e) {
-        std::cout << e.what() << "\n" << resp << std::endl;
+    std::string resp;
+    auto now = time(nullptr);
+    constexpr int nMods = kgMods;
+    constexpr int nChs = kgChs;
+    for (auto mod = 0; mod < nMods; mod++) {
+      for (auto ch = 0; ch < nChs; ch++) {
+        auto eventRate = fEventCounter[mod][ch];
+
+        try {
+          influxdb_cpp::builder()
+              .meas("ifin")
+              .tag("ch", std::to_string(ch))
+              .tag("mod", std::to_string(mod))
+              .field("rate", eventRate)
+              .timestamp(now * 1000000000)
+              .post_http(server, &resp);
+        } catch (const std::exception &e) {
+          std::cout << e.what() << "\n" << resp << std::endl;
+        }
       }
     }
   }
