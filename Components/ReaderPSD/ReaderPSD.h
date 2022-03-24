@@ -76,6 +76,9 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   int fTrgCounterCh = -1;
   bool fFlagTrgCounter = false;
 
+  bool fFlagSWTrg;
+  int fNSWTrg;
+
   TDataContainer fDataContainer;
 };
 

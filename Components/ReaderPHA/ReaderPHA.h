@@ -1,6 +1,6 @@
 // -*- C++ -*-
 /*!
- * @file 
+ * @file
  * @brief
  * @date
  * @author
@@ -14,20 +14,18 @@
 #include <memory>
 #include <string>
 
-#include "DaqComponentBase.h"
-#include "../../TDigiTES/include/TPHAData.hpp"
 #include "../../TDigiTES/include/TDigiTes.hpp"
 #include "../../TDigiTES/include/TPHA.hpp"
+#include "../../TDigiTES/include/TPHAData.hpp"
 #include "../include/TDataContainer.hpp"
-
+#include "DaqComponentBase.h"
 
 using namespace RTC;
 
-class ReaderPHA
-  : public DAQMW::DaqComponentBase
+class ReaderPHA : public DAQMW::DaqComponentBase
 {
-public:
-  ReaderPHA(RTC::Manager* manager);
+ public:
+  ReaderPHA(RTC::Manager *manager);
   ~ReaderPHA();
 
   // The initialize action (on CREATED->ALIVE transition)
@@ -38,11 +36,11 @@ public:
   // former rtc_active_do()
   virtual RTC::ReturnCode_t onExecute(RTC::UniqueId ec_id);
 
-private:
-  TimedOctetSeq          m_out_data;
+ private:
+  TimedOctetSeq m_out_data;
   OutPort<TimedOctetSeq> m_OutPort;
 
-private:
+ private:
   int daq_dummy();
   int daq_configure();
   int daq_unconfigure();
@@ -52,7 +50,7 @@ private:
   int daq_pause();
   int daq_resume();
 
-  int parse_params(::NVList* list);
+  int parse_params(::NVList *list);
   int read_data_from_detectors();
   int set_data();
   int write_OutPort();
@@ -60,7 +58,7 @@ private:
   static const int SEND_BUFFER_SIZE = 0;
   unsigned char m_data[SEND_BUFFER_SIZE];
   unsigned int m_recv_byte_size;
-  
+
   BufferStatus m_out_status;
   bool m_debug;
 
@@ -72,13 +70,14 @@ private:
   int fStartModNo = 0;
   std::string fParameterAPI;
 
+  bool fFlagSWTrg;
+  int fNSWTrg;
+
   TDataContainer fDataContainer;
 };
 
-
-extern "C"
-{
-    void ReaderPHAInit(RTC::Manager* manager);
+extern "C" {
+void ReaderPHAInit(RTC::Manager *manager);
 };
 
-#endif // READER_H
+#endif  // READER_H

@@ -75,6 +75,9 @@ ReaderPHA::ReaderPHA(RTC::Manager *manager)
 
   fConfigFile = "/DAQ/PHA.conf";
   fParameterAPI = "";
+
+  fFlagSWTrg = false;
+  fNSWTrg = 0;
 }
 
 ReaderPHA::~ReaderPHA() {}
@@ -133,6 +136,9 @@ int ReaderPHA::parse_params(::NVList *list)
       fStartModNo = std::stoi(svalue);
     } else if (sname == "ParameterAPI") {
       fParameterAPI = svalue;
+    } else if (sname == "SWTrigger") {
+      fFlagSWTrg = true;
+      fNSWTrg = std::stoi(svalue);
     }
   }
 
@@ -360,6 +366,10 @@ int ReaderPHA::daq_run()
   if (check_trans_lock()) {  // check if stop command has come
     set_trans_unlock();      // transit to CONFIGURED state
     return 0;
+  }
+
+  if (fFlagSWTrg) {
+    for (auto i = 0; i < fNSWTrg; i++) fDigitizer->SendSWTrigger();
   }
 
   int sentDataSize = 0;

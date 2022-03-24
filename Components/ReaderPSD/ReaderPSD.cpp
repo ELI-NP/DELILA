@@ -57,6 +57,9 @@ ReaderPSD::ReaderPSD(RTC::Manager *manager)
   fData = new unsigned char[1024 * 1024 * 16];
 
   fConfigFile = "/DAQ/PSD.conf";
+
+  fFlagSWTrg = false;
+  fNSWTrg = 0;
 }
 
 ReaderPSD::~ReaderPSD() {}
@@ -114,14 +117,13 @@ int ReaderPSD::parse_params(::NVList *list)
       fConfigFile = svalue;
     } else if (sname == "StartModNo") {
       fStartModNo = std::stoi(svalue);
-    } else if (sname.find("mod") != std::string::npos &&
-               sname.find("ch") != std::string::npos) {
-      auto posMod = sname.find("mod");
-      auto posCh = sname.find("ch");
+    } else if (sname == "TrgCounter") {
+      auto posMod = svalue.find("mod");
+      auto posCh = svalue.find("ch");
       char modNumber[10];
-      sname.copy(modNumber, posCh - (posMod + 3), posMod + 3);
+      svalue.copy(modNumber, posCh - (posMod + 3), posMod + 3);
       char chNumber[10];
-      sname.copy(chNumber, 3, posCh + 2);
+      svalue.copy(chNumber, 3, posCh + 2);
 
       fTrgCounterCh = atoi(chNumber);
       fTrgCounterMod = atoi(modNumber);
@@ -129,6 +131,9 @@ int ReaderPSD::parse_params(::NVList *list)
                 << " uses TrgCounter mode." << std::endl;
 
       fFlagTrgCounter = true;
+    } else if (sname == "SWTrigger") {
+      fFlagSWTrg = true;
+      fNSWTrg = std::stoi(svalue);
     }
   }
 
@@ -304,6 +309,10 @@ int ReaderPSD::daq_run()
   if (check_trans_lock()) {  // check if stop command has come
     set_trans_unlock();      // transit to CONFIGURED state
     return 0;
+  }
+
+  if (fFlagSWTrg) {
+    for (auto i = 0; i < fNSWTrg; i++) fDigitizer->SendSWTrigger();
   }
 
   int sentDataSize = 0;
