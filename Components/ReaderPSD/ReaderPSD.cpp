@@ -194,13 +194,13 @@ int ReaderPSD::read_data_from_detectors()
 
   constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
 
-  constexpr auto sizeMod = sizeof(PSDData::ModNumber);
-  constexpr auto sizeCh = sizeof(PSDData::ChNumber);
-  constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
-  constexpr auto sizeFineTS = sizeof(PSDData::FineTS);
-  constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
-  constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
-  constexpr auto sizeRL = sizeof(PSDData::RecordLength);
+  constexpr auto sizeMod = sizeof(TreeData::Mod);
+  constexpr auto sizeCh = sizeof(TreeData::Ch);
+  constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(TreeData::FineTS);
+  constexpr auto sizeEne = sizeof(TreeData::ChargeLong);
+  constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
+  constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
   fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
@@ -211,18 +211,18 @@ int ReaderPSD::read_data_from_detectors()
     for (auto i = 0; i < nData; i++) {
       const auto oneHitSize =
           sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
-          sizeRL + (sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength);
+          sizeRL + (sizeof(TreeData::Trace1[0]) * data->at(i)->RecordLength);
 
       std::vector<char> hit;
       hit.resize(oneHitSize);
       auto index = 0;
 
-      unsigned char mod = data->at(i)->ModNumber + fStartModNo;
+      unsigned char mod = data->at(i)->Mod + fStartModNo;
       memcpy(&hit[index], &(mod), sizeMod);
       index += sizeMod;
       received_data_size += sizeMod;
 
-      memcpy(&hit[index], &(data->at(i)->ChNumber), sizeCh);
+      memcpy(&hit[index], &(data->at(i)->Ch), sizeCh);
       index += sizeCh;
       received_data_size += sizeCh;
 
@@ -247,8 +247,8 @@ int ReaderPSD::read_data_from_detectors()
       received_data_size += sizeRL;
 
       const auto sizeTrace =
-          sizeof(*(PSDData::Trace1)) * data->at(i)->RecordLength;
-      memcpy(&hit[index], data->at(i)->Trace1, sizeTrace);
+          sizeof(TreeData::Trace1[0]) * data->at(i)->RecordLength;
+      memcpy(&hit[index], &(data->at(i)->Trace1[0]), sizeTrace);
       index += sizeTrace;
       received_data_size += sizeTrace;
 

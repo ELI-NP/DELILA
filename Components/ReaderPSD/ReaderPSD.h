@@ -16,10 +16,9 @@
 
 #include "../../TDigiTES/include/TDigiTes.hpp"
 #include "../../TDigiTES/include/TPHA.hpp"
-#include "../../TDigiTES/include/TPHAData.hpp"
 #include "../../TDigiTES/include/TPSD.hpp"
-#include "../../TDigiTES/include/TPSDData.hpp"
 #include "../include/TDataContainer.hpp"
+#include "../include/TreeData.h"
 #include "DaqComponentBase.h"
 
 using namespace RTC;
@@ -67,7 +66,7 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   // Digitizer
   std::unique_ptr<TPSD> fDigitizer;
   unsigned char *fData;
-  std::deque<PSDData_t> fQue;
+  std::deque<TreeData_t> fQue;
   std::string fConfigFile;
   int fStartModNo = 0;
   unsigned int fCounter = 0;
