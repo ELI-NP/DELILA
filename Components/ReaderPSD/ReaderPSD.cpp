@@ -160,6 +160,7 @@ int ReaderPSD::daq_start()
 
   // usleep(1000);
   fDigitizer->Start();
+  fDigitizer->StartReadoutMT();
 
   return 0;
 }
@@ -168,6 +169,7 @@ int ReaderPSD::daq_stop()
 {
   std::cerr << "*** ReaderPSD::stop" << std::endl;
 
+  fDigitizer->StopReadoutMT();
   fDigitizer->Stop();
 
   return 0;
@@ -176,6 +178,7 @@ int ReaderPSD::daq_stop()
 int ReaderPSD::daq_pause()
 {
   std::cerr << "*** ReaderPSD::pause" << std::endl;
+  fDigitizer->StopReadoutMT();
 
   return 0;
 }
@@ -183,6 +186,7 @@ int ReaderPSD::daq_pause()
 int ReaderPSD::daq_resume()
 {
   std::cerr << "*** ReaderPSD::resume" << std::endl;
+  fDigitizer->StartReadoutMT();
 
   return 0;
 }
@@ -202,7 +206,7 @@ int ReaderPSD::read_data_from_detectors()
   constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  fDigitizer->ReadEvents();
+  // fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
 
   if (data->size() > 0) {
