@@ -441,6 +441,7 @@ int Monitor::daq_run()
     ResetHists();
     fResetFlag = kFALSE;
   }
+  gSystem->ProcessEvents();
 
   if (fDumpAPI != "") {
     // fDumpState = "";
