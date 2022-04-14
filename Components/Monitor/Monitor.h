@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-#include "../../TDigiTES/include/TPHAData.hpp"
+#include "../../TDigiTES/include/TreeData.h"
 #include "DaqComponentBase.h"
 
 using namespace RTC;

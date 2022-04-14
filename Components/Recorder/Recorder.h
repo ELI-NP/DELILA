@@ -20,9 +20,8 @@
 #include <thread>
 #include <vector>
 
-#include "../../TDigiTES/include/TPSDData.hpp"
+#include "../../TDigiTES/include/TreeData.h"
 #include "DaqComponentBase.h"
-#include "TreeData.h"
 
 using namespace RTC;
 

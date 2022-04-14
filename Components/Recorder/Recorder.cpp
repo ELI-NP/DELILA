@@ -17,7 +17,7 @@
 #include <TFile.h>
 #include <TSystem.h>
 
-#include "../../TDigiTES/include/TPSDData.hpp"
+#include "../../TDigiTES/include/TreeData.h"
 #include "Recorder.h"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
@@ -326,7 +326,7 @@ int Recorder::FillData(unsigned int dataSize)
     i += sizeRL;
 
     if (data.RecordLength > 0) {
-      auto sizeTrace = sizeof(*(PSDData::Trace1)) * data.RecordLength;
+      auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
       data.Trace1.resize(data.RecordLength);
       memcpy(&data.Trace1[0], &m_in_data.data[i], sizeTrace);
       i += sizeTrace;

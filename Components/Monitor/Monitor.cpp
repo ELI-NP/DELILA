@@ -19,7 +19,6 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-#include "../../TDigiTES/include/TPSDData.hpp"
 #include "influxdb.hpp"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
@@ -487,23 +486,23 @@ int Monitor::daq_run()
 
 void Monitor::FillHist(int size)
 {
-  constexpr auto sizeMod = sizeof(PSDData::ModNumber);
-  constexpr auto sizeCh = sizeof(PSDData::ChNumber);
-  constexpr auto sizeTS = sizeof(PSDData::TimeStamp);
-  constexpr auto sizeFineTS = sizeof(PSDData::FineTS);
-  constexpr auto sizeEne = sizeof(PSDData::ChargeLong);
-  constexpr auto sizeShort = sizeof(PSDData::ChargeShort);
-  constexpr auto sizeRL = sizeof(PSDData::RecordLength);
+  constexpr auto sizeMod = sizeof(TreeData::Mod);
+  constexpr auto sizeCh = sizeof(TreeData::Ch);
+  constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(TreeData::FineTS);
+  constexpr auto sizeEne = sizeof(TreeData::ChargeLong);
+  constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
+  constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  PSDData data(5000000);  // 5000000 = 10ms, enough big for waveform???
+  TreeData data(5000000);  // 5000000 = 10ms, enough big for waveform???
 
   constexpr int headerSize = 8;
   for (unsigned int i = headerSize; i < size;) {
     // The order of data should be the same as Reader
-    memcpy(&data.ModNumber, &m_in_data.data[i], sizeMod);
+    memcpy(&data.Mod, &m_in_data.data[i], sizeMod);
     i += sizeMod;
 
-    memcpy(&data.ChNumber, &m_in_data.data[i], sizeCh);
+    memcpy(&data.Ch, &m_in_data.data[i], sizeCh);
     i += sizeCh;
 
     memcpy(&data.TimeStamp, &m_in_data.data[i], sizeTS);
@@ -521,23 +520,23 @@ void Monitor::FillHist(int size)
     memcpy(&data.RecordLength, &m_in_data.data[i], sizeRL);
     i += sizeRL;
 
-    auto sizeTrace = sizeof(*(PSDData::Trace1)) * data.RecordLength;
-    memcpy(data.Trace1, &m_in_data.data[i], sizeTrace);
+    auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
+    memcpy(&data.Trace1[0], &m_in_data.data[i], sizeTrace);
     i += sizeTrace;
 
     // Reject the overflow events
-    if (data.ModNumber >= 0 && data.ModNumber < kgMods && data.ChNumber >= 0 &&
-        data.ChNumber < kgChs && data.ChargeLong < (1 << 15)) {
-      auto ene = fCalFnc[data.ModNumber][data.ChNumber]->Eval(data.ChargeLong);
-      fHist[data.ModNumber][data.ChNumber]->Fill(ene);
-      fHistADC[data.ModNumber][data.ChNumber]->Fill(data.ChargeLong);
-      fEventCounter[data.ModNumber][data.ChNumber]++;
+    if (data.Mod >= 0 && data.Mod < kgMods && data.Ch >= 0 && data.Ch < kgChs &&
+        data.ChargeLong < (1 << 15)) {
+      auto ene = fCalFnc[data.Mod][data.Ch]->Eval(data.ChargeLong);
+      fHist[data.Mod][data.Ch]->Fill(ene);
+      fHistADC[data.Mod][data.Ch]->Fill(data.ChargeLong);
+      fEventCounter[data.Mod][data.Ch]++;
 
       for (auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
-        fWaveform[data.ModNumber][data.ChNumber]->SetPoint(iPoint, iPoint,
-                                                           data.Trace1[iPoint]);
-      fWaveform[data.ModNumber][data.ChNumber]->GetXaxis()->SetRange();
-      // fWaveform[data.ModNumber][data.ChNumber]->GetYaxis()->SetRange(0, 18000);
+        fWaveform[data.Mod][data.Ch]->SetPoint(iPoint, iPoint,
+                                               data.Trace1[iPoint]);
+      fWaveform[data.Mod][data.Ch]->GetXaxis()->SetRange();
+      // fWaveform[data.Mod][data.Ch]->GetYaxis()->SetRange(0, 18000);
     }
   }
 }
