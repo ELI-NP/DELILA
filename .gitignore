@@ -11,3 +11,8 @@ rtc.conf
 .vscode
 run/*
 tmp/*
+build/
+*.so
+CMakeFiles
+cmake_install.cmake
+CMakeCache.txt
