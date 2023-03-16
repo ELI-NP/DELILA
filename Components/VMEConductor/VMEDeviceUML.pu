@@ -1,0 +1,32 @@
+@startuml
+
+
+
+abstract class VMEDevice
+{
+    +virtual void read_cfg() = 0;
+    +virtual std::unique_ptr<VMEController> mod_configure(std::unique_ptr<VMEController> my_contr, uint32_t addr_offset, int modId) = 0;
+    +virtual std::unique_ptr<VMEController> mod_start(std::unique_ptr<VMEController> my_contr) = 0;
+    +virtual std::unique_ptr<VMEController> mod_stop(std::unique_ptr<VMEController> my_contr) = 0;
+    +virtual std::unique_ptr<VMEController> mod_run(std::unique_ptr<VMEController> my_contr, std::shared_ptr<std::vector<TreeData>> t_data, int *fNEvents) = 0;
+    +virtual int mod_checkifreader() = 0;
+}
+
+class dev_MADC32{
+}
+
+class dev_MTDC32{
+}
+
+VMEDevice <|-- dev_MADC32 : inheritance
+VMEDevice <|-- dev_MTDC32 : inheritance
+note right of dev_MTDC32: Only the devices and controller needed are linked.
+
+
+
+
+
+
+
+
+@enduml

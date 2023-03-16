@@ -1,0 +1,28 @@
+@startuml
+
+
+abstract class VMEController
+{
+    +virtual void utilsVMEinit(void) = 0;
+    +virtual void utilsVMEend(void) = 0;
+    +virtual void utilsVMEread(uint32_t busAddr, uint16_t *dataRead) = 0;
+    +virtual void utilsVMEwrite(uint32_t busAddr, int data) = 0;
+    +virtual void utilsVMEbltRead(uint32_t busAddr, int sizeBytes, uint32_t *dataBuff, int *dataTransf) = 0;
+    +virtual int utilsVMEirqCheck(uint32_t lineNr) = 0;
+    +virtual void utilsVMEsetAddrMod(int newaddrmod) = 0;
+    +virtual void utilsVMEsetDataW(int newdataw) = 0;
+}
+
+class cont_2718{
+}
+
+class cont_SISeth{
+}
+
+VMEController <|-- cont_2718 : inheritance
+VMEController <|-- cont_SISeth : inheritance
+note left of cont_2718: Shared objects linked at run time.\nShared objects to be linked can be chosen in the XML file.
+
+
+
+@enduml

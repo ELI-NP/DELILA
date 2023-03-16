@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<!-- DON'T REMOVE THE ABOVE LINE.                                     -->
+<!-- DON'T PUT ANY LINES ABOVE THE 1ST LINE.                          -->
+<!-- Sample config.xml to run TinySource and TinySink.                -->
+<!-- Please rewrite execPath (2 places), confFile (2 places) suitable -->
+<!-- for your directory structure.                                    -->
+<!-- run.py will create rtc.conf in /tmp/daqmw/rtc.conf               -->
+<!-- If you use run.py, set confFile as /tmp/daqmw/rtc.conf           -->
+<configInfo>
+  <daqOperator>
+    <hostAddr>127.0.0.1</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+	<component cid="VMEConductor0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>VMEConductor0.rtc</instName>
+          <execPath>/home/gant/DELILA-main/Components/VMEConductor/VMEConductorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>vmeconductor_out</outPort>
+          </outPorts>
+          <params>
+           <param pid="modName0">/home/gant/DELILA-main/Components/slibs/lib_dev_MADC32.so</param>
+           <param pid="modAddr0">0x00010000</param>
+           <param pid="modName1">/home/gant/DELILA-main/Components/slibs/lib_dev_MADC32.so</param>
+           <param pid="modAddr1">0x00020000</param>
+           <param pid="modName2">/home/gant/DELILA-main/Components/slibs/lib_dev_MADC32.so</param>
+           <param pid="modAddr2">0x00030000</param>
+           <param pid="modName3">/home/gant/DELILA-main/Components/slibs/lib_dev_MADC32.so</param>
+           <param pid="modAddr3">0x00040000</param>
+           <param pid="modName4">/home/gant/DELILA-main/Components/slibs/lib_dev_MADC32.so</param>
+           <param pid="modAddr4">0x00050000</param>
+           <param pid="modName5">/home/gant/DELILA-main/Components/slibs/lib_dev_MADC32.so</param>
+           <param pid="modAddr5">0x00060000</param>
+           <param pid="controller">/home/gant/DELILA-main/Components/slibs/lib_cont_SISeth.so</param>
+	  </params>
+    </component>
+    	<component cid="Dispatcher0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/gant/DELILA-main/Components/Dispatcher/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="VMEConductor0:vmeconductor_out"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">dispatcher_in</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/gant/DELILA-main/Components/Monitor/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out1"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+            <param pid="Calibration">/home/gant/DELILA-main/Calibration/dummy.dat</param>
+            <param pid="ELISSA calib">/home/gant/DELILA-main/Calibration/12x3-5yy1start-stop.json</param>
+	  </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/gant/DELILA-main/Components/Recorder/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+		  <param pid="OutputDir">/home/gant/DELILA-main/run</param>
+		  <param pid="SaveInterval">5</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>
