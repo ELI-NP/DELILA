@@ -436,6 +436,12 @@ int Monitor::daq_run()
   if (m_debug) {
     std::cerr << "*** Monitor::run" << std::endl;
   }
+
+  if (check_trans_lock()) {  // check if stop command has come
+    set_trans_unlock();      // transit to CONFIGURED state
+    return 0;
+  }
+
   // std::cout <<"Flag: " << fResetFlag << std::endl;
   if (fResetFlag) {
     ResetHists();
