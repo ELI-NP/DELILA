@@ -501,7 +501,7 @@ void Monitor::FillHist(int size)
   constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  TreeData data(5000000);  // 5000000 = 10ms, enough big for waveform???
+  TreeData data(5000);  // 5000 = 10us, enough big for waveform???
 
   constexpr int headerSize = 8;
   for (unsigned int i = headerSize; i < size;) {
