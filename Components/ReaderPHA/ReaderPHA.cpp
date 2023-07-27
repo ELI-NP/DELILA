@@ -207,7 +207,6 @@ int ReaderPHA::daq_start()
   }
 
   fDigitizer->Start();
-  fDigitizer->StartReadoutMT();
 
   return 0;
 }
@@ -216,7 +215,6 @@ int ReaderPHA::daq_stop()
 {
   std::cerr << "*** ReaderPHA::stop" << std::endl;
 
-  fDigitizer->StopReadoutMT();
   fDigitizer->Stop();
 
   return 0;
@@ -225,7 +223,6 @@ int ReaderPHA::daq_stop()
 int ReaderPHA::daq_pause()
 {
   std::cerr << "*** ReaderPHA::pause" << std::endl;
-  fDigitizer->StopReadoutMT();
 
   return 0;
 }
@@ -233,7 +230,6 @@ int ReaderPHA::daq_pause()
 int ReaderPHA::daq_resume()
 {
   std::cerr << "*** ReaderPHA::resume" << std::endl;
-  fDigitizer->StartReadoutMT();
 
   return 0;
 }
@@ -253,7 +249,7 @@ int ReaderPHA::read_data_from_detectors()
   constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  // fDigitizer->ReadEvents();
+  fDigitizer->ReadEvents();
   auto data = fDigitizer->GetData();
   // std::cout << data->size() << std::endl;
   if (data->size() > 0) {
