@@ -8,7 +8,7 @@ omninames*
 rtc.conf
 .depend
 .confFilePath
-.vscode/*
+.vscode
 run/*
 tmp/*
 build/
