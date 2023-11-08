@@ -415,7 +415,7 @@ std::unique_ptr<VMEController> MTDC32::mod_run(std::unique_ptr<VMEController> my
                    
                 
             }
-        }else if(ext_ts == 1){
+        }else if(ext_ts == 3){
 
 
             //low bits of extended time stamp
@@ -494,32 +494,27 @@ std::unique_ptr<VMEController> MTDC32::mod_run(std::unique_ptr<VMEController> my
 
                     }
 
-                }else if((dataBuff[i]>>30) == 3){
+                } else if ((dataBuff[i] >> 30) == 3) {
 
-                    //first 2 bits are always 11 for EOE mark; we only use 30 for the time stamp
-                    ext_ts_lb = (dataBuff[i] & 0x3FFFFFFF);
+                  // first 2 bits are always 11 for EOE mark; we only use 30 for
+                  // the time stamp
+                  ext_ts_lb = (dataBuff[i] & 0x3FFFFFFF);
 
+                  // checks if the 16 low bits of extended time stamp were
+                  // present
+                  if (ts_valid) {
 
-                    //checks if the 16 low bits of extended time stamp were present
-                    if(ts_valid){
+                    for (int iter_eoe = 0; iter_eoe < ev_in_h; iter_eoe++) {
 
-                        for(int iter_eoe = 0; iter_eoe<ev_in_h; iter_eoe++){
-
-                            t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp = (ext_ts_hb<<16) + ext_ts_lb;
-
-                        }
-
-                    }else{
-
-                        printf("\nTime stamp invalid!!!\n");
-
+                      t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp =
+                          (ext_ts_hb << 30) + ext_ts_lb;
                     }
-                        
 
+                  } else {
 
+                    printf("\nTime stamp invalid!!!\n");
+                  }
                 }
-
-
             }
         }else if(ext_ts == 1){
 

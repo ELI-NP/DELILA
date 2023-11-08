@@ -570,7 +570,7 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
 
                         for(int iter_eoe = 0; iter_eoe<ev_in_h; iter_eoe++){
 
-                            t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp = (ext_ts_hb<<16) + ext_ts_lb;
+                            t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp = (ext_ts_hb<<30) + ext_ts_lb;
 
                         }
 
