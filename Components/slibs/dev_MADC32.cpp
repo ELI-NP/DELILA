@@ -260,14 +260,8 @@ std::unique_ptr<VMEController> MADC32::mod_configure(std::unique_ptr<VMEControll
 
 
 
-    //if extended time stamp is on
-    if(this->ext_ts){
-        //enable extended time stamp mode
-        my_contr->utilsVMEwrite(0x6038 + addr_offset, 3);
-    }else{
-        //disable extended ts
-        my_contr->utilsVMEwrite(0x6038 + addr_offset, 0);
-    }
+    //set time stamp option
+    my_contr->utilsVMEwrite(0x6038 + addr_offset, ext_ts);
 
 
 
@@ -306,8 +300,8 @@ std::unique_ptr<VMEController> MADC32::mod_start(std::unique_ptr<VMEController> 
     my_contr->utilsVMEwrite(0x603A + this->addr_offset, 1);
 
 
-    //reset counter for ext ts
-    if(ext_ts){
+    //reset counter for ts
+    if(ext_ts != 0){
         my_contr->utilsVMEwrite(this->addr_offset + 0x6090, 1);
     }
 
@@ -398,15 +392,11 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
         my_contr->utilsVMEwrite(addr_offset + 0x6034, 1);
 
 
+        //different based on time stamp option
         if(ext_ts == 0){
 
             for(int i = 0; i<buffSize; i++){
 
-                    //used for testing
-                    //######
-                    //char *binary = toBinary((dataBuff[i]), 32);
-                    //printf("The binary representation of %u is %s\n", (dataBuff[i]), binary);
-                    //######
 
                 //std::cerr<<"The data is: "<<std::bitset<32>(dataBuff[i])<<std::endl;
 
@@ -485,7 +475,7 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
                    
                 
             }
-        }else if(ext_ts == 1){
+        }else if(ext_ts == 3){
 
 
             //low bits of extended time stamp
@@ -502,16 +492,6 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
 
 
             for(int i = 0; i<buffSize; i++){
-
-                    //used for testing
-                    //######
-                    /* if(dataBuff[i] != 0){
-                        char *binary = toBinary((dataBuff[i]), 32);
-                        printf("The binary representation of %u is %s\n", (dataBuff[i]), binary);
-                        fflush(stdout);
-                    } */
-                    
-                    //######
 
 
                 if((dataBuff[i]>>30) == 1){
@@ -568,7 +548,7 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
 
                     }else if((dataBuff[i]>>16) == 1152){
 
-                        ext_ts_lb = (dataBuff[i] & 0x0000FFFF);
+                        ext_ts_hb = (dataBuff[i] & 0x0000FFFF);
                         ts_valid = true;
                     
 
@@ -582,7 +562,7 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
                 }else if((dataBuff[i]>>30) == 3){
 
                     //first 2 bits are always 11 for EOE mark; we only use 30 for the time stamp
-                    ext_ts_hb = (dataBuff[i] & 0x3FFFFFFF);
+                    ext_ts_lb = (dataBuff[i] & 0x3FFFFFFF);
 
 
                     //checks if the 16 low bits of extended time stamp were present
@@ -590,7 +570,7 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
 
                         for(int iter_eoe = 0; iter_eoe<ev_in_h; iter_eoe++){
 
-                            t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp = (ext_ts_hb<<16) + ext_ts_lb;
+                            t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp = (ext_ts_hb<<30) + ext_ts_lb;
 
                         }
 
@@ -606,6 +586,96 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
 
 
             }
+        }else if(ext_ts == 1){
+
+            
+            //time stamp
+            uint16_t ts_b = 0;
+
+
+            //nr of events in header
+            int ev_in_h = 0;
+
+
+            for(int i = 0; i<buffSize; i++){
+
+
+
+                if((dataBuff[i]>>30) == 1){
+
+                    ev_in_h = 0;
+
+                    ts_b = 0;
+
+                    if((dataBuff[i]>>24) != 64){
+                        printf("Event header invalid\n");
+                    }
+
+                }else if((dataBuff[i]>>30) == 0){
+
+                    if((dataBuff[i]>>22) == 16){
+
+
+                        TreeData loc_data;
+
+                        loc_data.Mod = mod_nr;
+                        loc_data.Ch = ((dataBuff[i]>>16)&0b0000000000011111);
+
+
+                        //nonsense value that gets changed
+                        loc_data.TimeStamp = 0xFFFFFFFFFFFFFFFF;
+
+
+                        loc_data.FineTS = 0;
+
+                        if(((dataBuff[i]>>14) & 0x1) == 1){
+                            loc_data.ChargeLong = 0xFFFF;
+                            std::cerr<<"Data out of range"<<std::endl;
+                        }else{
+                            loc_data.ChargeLong = (uint16_t)(dataBuff[i] & 0x00003FFF);
+                        }
+
+                        loc_data.ChargeShort = 0xFFFF;
+                        loc_data.RecordLength = 1;
+                        loc_data.Extras = 0xFFFF0032;
+
+
+                            
+
+
+                        t_data->push_back(loc_data);
+
+                        (*fNEvents)++;
+
+                        ev_in_h++;
+
+                    }else if(dataBuff[i] != 0){
+
+                        printf("Data event invalid\n");
+                           
+
+                    }
+
+                }else if((dataBuff[i]>>30) == 3){
+
+                    //first 2 bits are always 11 for EOE mark; we only use 30 for the time stamp
+                    ts_b = (dataBuff[i] & 0x3FFFFFFF);
+
+                    //set the time stamp
+                    for(int iter_eoe = 0; iter_eoe<ev_in_h; iter_eoe++){
+
+                        t_data->at((*fNEvents) - (ev_in_h - iter_eoe)).TimeStamp = ts_b;
+
+                    }
+
+                        
+
+
+                }
+
+
+            }
+
         }
 
 
@@ -616,7 +686,7 @@ std::unique_ptr<VMEController> MADC32::mod_run(std::unique_ptr<VMEController> my
 
 
     
-    std::cout<<"MADC Mean "<<this->mean<<std::endl;
+        std::cout<<"MADC Mean "<<this->mean<<std::endl;
 
     }
 
