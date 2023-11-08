@@ -436,6 +436,12 @@ int Monitor::daq_run()
   if (m_debug) {
     std::cerr << "*** Monitor::run" << std::endl;
   }
+
+  if (check_trans_lock()) {  // check if stop command has come
+    set_trans_unlock();      // transit to CONFIGURED state
+    return 0;
+  }
+
   // std::cout <<"Flag: " << fResetFlag << std::endl;
   if (fResetFlag) {
     ResetHists();
@@ -495,7 +501,7 @@ void Monitor::FillHist(int size)
   constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  TreeData data(5000000);  // 5000000 = 10ms, enough big for waveform???
+  TreeData data(5000);  // 5000 = 10us, enough big for waveform???
 
   constexpr int headerSize = 8;
   for (unsigned int i = headerSize; i < size;) {
@@ -584,43 +590,43 @@ void Monitor::DumpHists()
 
 void Monitor::UploadEventRate(int timeDuration)
 {
-  int totalCountRate = 0;
   for (auto &&brd : fEventCounter) {
     for (auto &&ch : brd) {
       ch /= timeDuration;
-      totalCountRate += ch;
     }
   }
 
-  fGrEveRate->AddPoint(time(nullptr), totalCountRate);
-  while (fGrEveRate->GetN() > 100) {
-    fGrEveRate->RemovePoint(0);
-  }
-  fGrEveRate->GetXaxis()->SetRange();
+  auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
 
-  if (fEveRateServer != "") {
-    auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
-
-    std::string resp;
-    auto now = time(nullptr);
-    constexpr int nMods = kgMods;
-    constexpr int nChs = kgChs;
-    for (auto mod = 0; mod < nMods; mod++) {
-      for (auto ch = 0; ch < nChs; ch++) {
-        auto eventRate = fEventCounter[mod][ch];
-
-        try {
-          influxdb_cpp::builder()
-              .meas("ifin")
-              .tag("ch", std::to_string(ch))
-              .tag("mod", std::to_string(mod))
-              .field("rate", eventRate)
-              .timestamp(now * 1000000000)
-              .post_http(server, &resp);
-        } catch (const std::exception &e) {
-          std::cout << e.what() << "\n" << resp << std::endl;
-        }
+  std::string resp;
+  auto now = time(nullptr);
+  influxdb_cpp::builder builder;
+  influxdb_cpp::detail::ts_caller *caller = nullptr;
+  constexpr int nMods = kgMods;
+  for (auto mod = 0; mod < nMods; mod++) {
+    int nChs = kgChs;
+    if (mod > 1) nChs = 16;
+    for (auto ch = 0; ch < nChs; ch++) {
+      auto eventRate = fEventCounter[mod][ch];
+      if (caller) {
+        caller = &caller->meas("E8")
+                      .tag("ch", std::to_string(ch))
+                      .tag("mod", std::to_string(mod))
+                      .field("rate", eventRate)
+                      .timestamp(now * 1000000000);
+      } else {
+        caller = &builder.meas("E8")
+                      .tag("ch", std::to_string(ch))
+                      .tag("mod", std::to_string(mod))
+                      .field("rate", eventRate)
+                      .timestamp(now * 1000000000);
       }
+    }
+  }
+  if (caller) {
+    auto result = caller->post_http(server, &resp);
+    if (result != 0) {
+      std::cout << resp << std::endl;
     }
   }
 
