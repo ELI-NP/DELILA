@@ -13,7 +13,7 @@ On the terminal, type following.
 ***sudo apt install omniorb omniidl omniorb-nameserver libomniorb4-dev libxalan-c-dev libtool-bin uuid-dev autogen libboost-all-dev bc libxml2-utils libxml2-dev xinetd emacs git cmake-qt-gui doxygen automake swig dpkg-dev g++ gcc binutils libx11-dev libxpm-dev libxft-dev libxext-dev python libssl-dev apache2 libapache2-mod-wsgi python2-dev libcurl4-openssl-dev nlohmann-json3-dev***  
 ### For Ubuntu22
 On the terminal, type following.  
-***sudo apt install omniorb omniidl omniorb-nameserver libomniorb4-dev libxalan-c-dev libtool-bin uuid-dev autogen libboost-all-dev bc libxml2-utils libxml2-dev xinetd emacs git cmake-qt-gui doxygen automake swig dpkg-dev g++ gcc binutils libx11-dev libxpm-dev libxft-dev libxext-dev python-is-python3 libssl-dev apache2 libapache2-mod-wsgi-py3 python3-dev libcurl4-openssl-dev nlohmann-json3-dev xinet***  
+***sudo apt install omniorb omniidl omniorb-nameserver libomniorb4-dev libxalan-c-dev libtool-bin uuid-dev autogen libboost-all-dev bc libxml2-utils libxml2-dev xinetd emacs git cmake-qt-gui doxygen automake swig dpkg-dev g++ gcc binutils libx11-dev libxpm-dev libxft-dev libxext-dev python-is-python3 libssl-dev apache2 libapache2-mod-wsgi-py3 python3-dev libcurl4-openssl-dev nlohmann-json3-dev xinet libroscpp-dev***  
 
 These packages are listed by [Dependencies page of ROOT](https://root.cern/install/dependencies/) and [DAQ-Middleware intallation for Raspberry Pi](https://daqmw.kek.jp/raspberrypi/DAQ-MWonRasp4b-rep.txt).  Almost all of DAQ-Middleware page is written in Japanese, please try to use Chrome or some web browsers with translation. There are some unnecessary packages also.  If you want, you can remove (e.g. emacs).  
 
