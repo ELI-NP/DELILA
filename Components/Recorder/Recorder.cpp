@@ -73,8 +73,8 @@ Recorder::Recorder(RTC::Manager *manager)
   fSubRunNumber = 0;
 
   fDataSize = 0.;
-  fDataLimit = 1024. * 1024. * 1024. * 0.9;  // 900 MiB
-  // fDataLimit = 1024. * 1024. * 1024. * 1.; // 1 GiB
+  // fDataLimit = 1024. * 1024. * 1024. * 0.9;  // 900 MiB
+  fDataLimit = 1024. * 1024. * 1024. * 1.; // 1 GiB
   // fDataLimit = 1024. * 1024. * 1024. * 2.; // 2GiB
   // fDataLimit = 1024. * 1024. * 2.; // 2MiB
 
@@ -166,14 +166,19 @@ int Recorder::daq_start()
   std::cerr << "*** Recorder::start" << std::endl;
 
   m_in_status = BUF_SUCCESS;
+  fRunNumber = get_run_number();
+  fDataWriteFlag = false;
+  if(fRunNumber >= 0 && fRunNumber < INT_MAX) fDataWriteFlag = true;
   fSubRunNumber = 0;
   fLastSave = time(nullptr);
   fDataSize = 0.;
 
-  fStopFlag = false;
-  fMakeTreeThread = std::thread(&Recorder::MakeTree, this);
-  fWriteFileThread = std::thread(&Recorder::WriteFile, this);
-
+  if(fDataWriteFlag) {
+    fStopFlag = false;
+    fMakeTreeThread = std::thread(&Recorder::MakeTree, this);
+    fWriteFileThread = std::thread(&Recorder::WriteFile, this);
+  }
+  
   return 0;
 }
 
@@ -181,13 +186,15 @@ int Recorder::daq_stop()
 {
   std::cerr << "*** Recorder::stop" << std::endl;
   reset_InPort();
-
-  EnqueueData();
-  ResetVec();
-
-  fStopFlag = true;
-  fMakeTreeThread.join();
-  fWriteFileThread.join();
+  
+  if(fDataWriteFlag){
+    EnqueueData();
+    ResetVec();
+    fStopFlag = true;
+    fMakeTreeThread.join();
+    fWriteFileThread.join();
+  }
+  
 
   return 0;
 }
@@ -263,18 +270,20 @@ int Recorder::daq_run()
   /////////////  Write component main logic here. /////////////
   // online_analyze();
   /////////////////////////////////////////////////////////////
-  FillData(event_byte_size);
 
   inc_sequence_num();                    // increase sequence num.
   inc_total_data_size(event_byte_size);  // increase total data byte size
   fDataSize += event_byte_size;
 
-  auto now = time(nullptr);
-  if ((now - fLastSave > fSaveInterval) || (fDataSize > fDataLimit)) {
-    EnqueueData();
-    ResetVec();
-    fLastSave = now;
-    fDataSize = 0.;
+  if(fDataWriteFlag){
+    FillData(event_byte_size);
+    auto now = time(nullptr);
+    if ((now - fLastSave > fSaveInterval) || (fDataSize > fDataLimit)) {
+      EnqueueData();
+      ResetVec();
+      fLastSave = now;
+      fDataSize = 0.;
+    }
   }
 
   return 0;
@@ -425,21 +434,21 @@ void Recorder::WriteFile()
       fTreeQueue.pop_front();
       fMutex.unlock();
 
-      auto runNumber = get_run_number();
       // auto hostName = "_" + fHostName;
       auto extention = "_" + fHostName + ".root";
       auto fileName =
-          fOutputDir + Form("/run%d_%d", runNumber, fSubRunNumber) + extention;
+          fOutputDir + Form("/run%d_%d", fRunNumber, fSubRunNumber) + extention;
       if (!gSystem->AccessPathName(fileName)) {
         // In the case of file already existing, adding UNIX time.
         fileName =
             fOutputDir +
-            Form("/run%d_%d_%ld", runNumber, fSubRunNumber, time(nullptr)) +
+            Form("/run%d_%d_%ld", fRunNumber, fSubRunNumber, time(nullptr)) +
             extention;
       }
       fSubRunNumber++;
 
       auto file = new TFile(fileName, "NEW");
+      file->SetCompressionLevel(ROOT::RCompressionSetting::ELevel::kUncompressed);
       tree->SetDirectory(file);
       tree->Write();
 

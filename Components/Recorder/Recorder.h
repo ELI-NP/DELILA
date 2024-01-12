@@ -73,7 +73,9 @@ class Recorder : public DAQMW::DaqComponentBase
   unsigned long fLastSave;
   unsigned long fSaveInterval;
   unsigned int fSubRunNumber;
-
+  int fRunNumber; // m_runNumber is uint.  But get_run_number return int.
+  bool fDataWriteFlag = false;
+  
   std::unique_ptr<std::vector<TreeData>> fpDataVec;
   void ResetVec();
 

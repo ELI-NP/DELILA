@@ -6,7 +6,7 @@ SRCS += $(COMP_NAME).cpp
 SRCS += $(COMP_NAME)Comp.cpp
 
 LDFLAGS += $(shell root-config --glibs) -lRHTTP -lcurl
-CPPFLAGS += -I$(shell root-config --incdir)
+CPPFLAGS += -I$(shell root-config --incdir) -O2
 
 # sample install target
 #

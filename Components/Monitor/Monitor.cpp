@@ -117,7 +117,8 @@ Monitor::Monitor(RTC::Manager *manager)
   gStyle->SetOptStat(1111);
   gStyle->SetOptFit(1111);
   fServ.reset(new THttpServer("http:8080?monitoring=5000;rw;noglobal"));
-
+  fServ->SetCors();
+  
   fResetFlag = kFALSE;
   fServ->RegisterCommand("/ResetHists", "fResetFlag=kTRUE",
                          "button;rootsys/icons/refresh.png");
