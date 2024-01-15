@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<!-- DON'T REMOVE THE ABOVE LINE.                                     -->
+<!-- DON'T PUT ANY LINES ABOVE THE 1ST LINE.                          -->
+<!-- Sample config.xml to run TinySource and TinySink.                -->
+<!-- Please rewrite execPath (2 places), confFile (2 places) suitable -->
+<!-- for your directory structure.                                    -->
+<!-- run.py will create rtc.conf in /tmp/daqmw/rtc.conf               -->
+<!-- If you use run.py, set confFile as /tmp/daqmw/rtc.conf           -->
+<configInfo>
+  <daqOperator>
+    <hostAddr>172.18.4.77</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+	<component cid="Emulator0">
+          <hostAddr>172.18.4.77</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Emulator0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/Emulator/EmulatorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>emulator_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="NEvents">1024</param>
+	    <param pid="Signal">PMT</param>
+	  </params>
+        </component>
+        <component cid="Dispatcher0">
+          <hostAddr>172.18.4.77</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/Dispatcher/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="Emulator0:emulator_out"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">dispatcher_in</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>172.18.4.77</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/Monitor/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out1"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+            <param pid="Calibration">/home/aogaki/DELILA/Calibration/dummy.dat</param>
+	  </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>172.18.4.77</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/Recorder/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2"
+		    buffer_length="256"
+		    buffer_read_timeout="0.1">reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+		  <param pid="OutputDir">/home/aogaki/DELILA/run</param>
+		  <param pid="SaveInterval">5</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>
