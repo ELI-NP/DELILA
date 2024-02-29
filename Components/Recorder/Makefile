@@ -5,8 +5,8 @@ all: $(COMP_NAME)Comp
 SRCS += $(COMP_NAME).cpp
 SRCS += $(COMP_NAME)Comp.cpp
 
-LDFLAGS += $(shell root-config --glibs) -lRHTTP -O2
-CPPFLAGS += -I$(shell root-config --incdir) -pthread -O2
+LDFLAGS += $(shell root-config --glibs) -lRHTTP -O2 -fopenmp
+CPPFLAGS += -I$(shell root-config --incdir) -pthread -O2 -fopenmp 
 
 # sample install target
 #

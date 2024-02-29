@@ -73,23 +73,17 @@ class Recorder : public DAQMW::DaqComponentBase
   unsigned long fLastSave;
   unsigned long fSaveInterval;
   unsigned int fSubRunNumber;
-  int fRunNumber; // m_runNumber is uint.  But get_run_number return int.
+  int fRunNumber;  // m_runNumber is uint.  But get_run_number return int.
   bool fDataWriteFlag = false;
-  
+
   std::unique_ptr<std::vector<TreeData>> fpDataVec;
   void ResetVec();
 
-  // When the stop, or very high event rate case,
-  // We need to separate the data writing part.
-  // Data writing takes long time.
   void EnqueueData();
-  void MakeTree();
-  void WriteFile();
-  bool fStopFlag;
-  std::thread fMakeTreeThread;
-  std::thread fWriteFileThread;
+  std::vector<std::thread> fThreadVec;
+  void MakeTreeAndFile(std::vector<TreeData> *data);
+
   std::deque<std::vector<TreeData> *> fRawDataQueue;
-  std::deque<TTree *> fTreeQueue;
   std::mutex fMutex;
 };
 
