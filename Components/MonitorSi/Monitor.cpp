@@ -146,7 +146,8 @@ Monitor::Monitor(RTC::Manager *manager)
       fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
     }
   }
-  fSiHist = nullptr;
+  fSiHist1 = nullptr;
+  fSiHist2 = nullptr;
 }
 
 Monitor::~Monitor() { curl_easy_cleanup(fCurl); }
@@ -260,20 +261,19 @@ int Monitor::daq_configure()
   fGrEveRate->GetYaxis()->SetTitle("[cps]");
   fServ->Register("/", fGrEveRate.get());
 
-  if (fSiHist == nullptr && fSiConf.size() > 0 && fSiMap.size() > 0) {
-    //double fInnerDiameter = 25.92;
-    //double fOuterDiameter = 70.09;
-    //int fNRings = 45;
-    //int fNSectorsRear = 16;
-    //int fNSectorsFront = 1;
-    //fSiHist = new SiDetector::TSiHist("SiHist", fInnerDiameter, fOuterDiameter,
-    //                                fNRings, fNSectorsRear, fNSectorsFront);
-
-    fSiHist = new SiDetector::TSiHist("SiHist", fSiConf);
-    fSiHist->LoadConfig(fSiMap);
-    fServ->Register("/", fSiHist->GetHistFront());
-    fServ->Register("/", fSiHist->GetHistRear());
-    fServ->Register("/", fSiHist->GetHistMatrix());
+  if (fSiHist1 == nullptr && fSiConf1.size() > 0 && fSiMap1.size() > 0) {
+    fSiHist1 = new SiDetector::TSiHist("SiHist1", fSiConf1);
+    fSiHist1->LoadConfig(fSiMap1);
+    fServ->Register("/", fSiHist1->GetHistFront());
+    fServ->Register("/", fSiHist1->GetHistRear());
+    fServ->Register("/", fSiHist1->GetHistMatrix());
+  }
+  if (fSiHist2 == nullptr && fSiConf2.size() > 0 && fSiMap2.size() > 0) {
+    fSiHist2 = new SiDetector::TSiHist("SiHist2", fSiConf2);
+    fSiHist2->LoadConfig(fSiMap2);
+    fServ->Register("/", fSiHist2->GetHistFront());
+    fServ->Register("/", fSiHist2->GetHistRear());
+    fServ->Register("/", fSiHist2->GetHistMatrix());
   }
 
   return 0;
@@ -362,10 +362,14 @@ int Monitor::parse_params(::NVList *list)
       fSignalListFile = svalue;
     } else if (sname == "BGOList") {
       fBGOListFile = svalue;
-    } else if (sname == "SiConf") {
-      fSiConf = svalue;
-    } else if (sname == "SiMap") {
-      fSiMap = svalue;
+    } else if (sname == "SiConf1") {
+      fSiConf1 = svalue;
+    } else if (sname == "SiMap1") {
+      fSiMap1 = svalue;
+    } else if (sname == "SiConf2") {
+      fSiConf2 = svalue;
+    } else if (sname == "SiMap2") {
+      fSiMap2 = svalue;
     } else if (sname == "BinWidth") {
       fBinWidth = std::stod(svalue);
       if (fBinWidth <= 0.) fBinWidth = 1.;
@@ -395,15 +399,23 @@ int Monitor::daq_start()
   }
 
   ResetHists();
-  if(fSiHist != nullptr) {
-  fSiHist->GetHistFront()->Reset("");
-  fSiHist->GetHistFront()->SetDrawOption("COLZ");
-  fSiHist->GetHistRear()->Reset("");
-  fSiHist->GetHistRear()->SetDrawOption("COLZ");
-  fSiHist->GetHistMatrix()->Reset("");
-  fSiHist->GetHistMatrix()->SetDrawOption("COLZ");
+  if (fSiHist1 != nullptr) {
+    fSiHist1->GetHistFront()->Reset("");
+    fSiHist1->GetHistFront()->SetDrawOption("COLZ");
+    fSiHist1->GetHistRear()->Reset("");
+    fSiHist1->GetHistRear()->SetDrawOption("COLZ");
+    fSiHist1->GetHistMatrix()->Reset("");
+    fSiHist1->GetHistMatrix()->SetDrawOption("COLZ");
   }
-  
+  if (fSiHist2 != nullptr) {
+    fSiHist2->GetHistFront()->Reset("");
+    fSiHist2->GetHistFront()->SetDrawOption("COLZ");
+    fSiHist2->GetHistRear()->Reset("");
+    fSiHist2->GetHistRear()->SetDrawOption("COLZ");
+    fSiHist2->GetHistMatrix()->Reset("");
+    fSiHist2->GetHistMatrix()->SetDrawOption("COLZ");
+  }
+
   return 0;
 }
 
@@ -588,9 +600,13 @@ void Monitor::FillHistsThread(std::vector<char> dataVec)
       fWaveform[data.Mod][data.Ch]->GetXaxis()->SetRange();
       // fWaveform[data.Mod][data.Ch]->GetYaxis()->SetRange(0, 18000);
 
-      if (fSiHist != nullptr && data.Mod == 0 && data.Ch >= 0 && data.Ch < 61) {
+      if (fSiHist1 != nullptr) {
         auto digitizer = SiDetector::Digitizer(data.Mod, data.Ch);
-        fSiHist->FillByDigitizer(digitizer);
+        fSiHist1->FillByDigitizer(digitizer);
+      }
+      if (fSiHist2 != nullptr) {
+        auto digitizer = SiDetector::Digitizer(data.Mod, data.Ch);
+        fSiHist2->FillByDigitizer(digitizer);
       }
     }
   }

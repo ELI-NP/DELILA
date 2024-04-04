@@ -118,9 +118,13 @@ class Monitor : public DAQMW::DaqComponentBase
   // Reset Histograms
   void ResetHists();
 
-  SiDetector::TSiHist *fSiHist = nullptr;
-  std::string fSiConf = "";
-  std::string fSiMap = "";
+  // Quick hack for 2 Si detectors
+  SiDetector::TSiHist *fSiHist1 = nullptr;
+  std::string fSiConf1 = "";
+  std::string fSiMap1 = "";
+  SiDetector::TSiHist *fSiHist2 = nullptr;
+  std::string fSiConf2 = "";
+  std::string fSiMap2 = "";
 };
 
 extern "C" {
