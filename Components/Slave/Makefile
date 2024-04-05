@@ -13,7 +13,7 @@ SRCS += ../../TDigiTES/src/TDigiTes.cpp
 SRCS += ../../TDigiTES/src/TPHA.cpp
 
 LDLIBS += -lCAENDigitizer
-CPPFLAGS += -std=c++11 -I../../TDigiTES/include
+CPPFLAGS += -std=c++14 -O2 -I../../TDigiTES/include
 
 # sample install target
 #

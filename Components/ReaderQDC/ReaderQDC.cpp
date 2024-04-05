@@ -7,7 +7,7 @@
  *
  */
 
-#include "ReaderPSD.h"
+#include "ReaderQDC.h"
 
 using DAQMW::FatalType::DATAPATH_DISCONNECTED;
 using DAQMW::FatalType::OUTPORT_ERROR;
@@ -16,11 +16,11 @@ using DAQMW::FatalType::USER_DEFINED_ERROR1;
 // Module specification
 // Change following items to suit your component's spec.
 static const char *reader_spec[] = {"implementation_id",
-                                    "ReaderPSD",
+                                    "ReaderQDC",
                                     "type_name",
-                                    "ReaderPSD",
+                                    "ReaderQDC",
                                     "description",
-                                    "ReaderPSD component",
+                                    "ReaderQDC component",
                                     "version",
                                     "1.0",
                                     "vendor",
@@ -37,7 +37,7 @@ static const char *reader_spec[] = {"implementation_id",
                                     "compile",
                                     ""};
 
-ReaderPSD::ReaderPSD(RTC::Manager *manager)
+ReaderQDC::ReaderQDC(RTC::Manager *manager)
     : DAQMW::DaqComponentBase(manager),
       m_OutPort("reader_out", m_out_data),
       m_recv_byte_size(0),
@@ -56,52 +56,54 @@ ReaderPSD::ReaderPSD(RTC::Manager *manager)
 
   fData = new unsigned char[1024 * 1024 * 16];
 
-  fConfigFile = "/DAQ/PSD.conf";
-
-  fFlagSWTrg = false;
-  fNSWTrg = 0;
+  fConfigFile = "/DAQ/QDC.conf";
 }
 
-ReaderPSD::~ReaderPSD() {}
+ReaderQDC::~ReaderQDC() {}
 
-RTC::ReturnCode_t ReaderPSD::onInitialize()
+RTC::ReturnCode_t ReaderQDC::onInitialize()
 {
   if (m_debug) {
-    std::cerr << "ReaderPSD::onInitialize()" << std::endl;
+    std::cerr << "ReaderQDC::onInitialize()" << std::endl;
   }
 
   return RTC::RTC_OK;
 }
 
-RTC::ReturnCode_t ReaderPSD::onExecute(RTC::UniqueId ec_id)
+RTC::ReturnCode_t ReaderQDC::onExecute(RTC::UniqueId ec_id)
 {
   daq_do();
 
   return RTC::RTC_OK;
 }
 
-int ReaderPSD::daq_dummy() { return 0; }
+int ReaderQDC::daq_dummy() { return 0; }
 
-int ReaderPSD::daq_configure()
+int ReaderQDC::daq_configure()
 {
-  std::cerr << "*** ReaderPSD::configure" << std::endl;
+  std::cerr << "*** ReaderQDC::configure" << std::endl;
 
   ::NVList *paramList;
   paramList = m_daq_service0.getCompParams();
   parse_params(paramList);
 
-  fDigitizer.reset(new TPSD);
+  fDigitizer.reset(new TQDC);
   fDigitizer->LoadParameters(fConfigFile);
   fDigitizer->OpenDigitizers();
   fDigitizer->InitDigitizers();
-  fDigitizer->UseHWFineTS();
+  if (fFlagSWFineTS) {
+    fDigitizer->UseFineTS();
+  } else {
+    fDigitizer->UseHWFineTS();
+  }
+  fDigitizer->EnableLVDS();
   if (fFlagTrgCounter) fDigitizer->UseTrgCounter(fTrgCounterMod, fTrgCounterCh);
   fDigitizer->AllocateMemory();
 
   return 0;
 }
 
-int ReaderPSD::parse_params(::NVList *list)
+int ReaderQDC::parse_params(::NVList *list)
 {
   std::cerr << "param list length:" << (*list).length() << std::endl;
 
@@ -131,18 +133,22 @@ int ReaderPSD::parse_params(::NVList *list)
                 << " uses TrgCounter mode." << std::endl;
 
       fFlagTrgCounter = true;
-    } else if (sname == "SWTrigger") {
-      fFlagSWTrg = true;
-      fNSWTrg = std::stoi(svalue);
+    } else if (sname == "FineTS") {
+      if (svalue == "SW")
+        fFlagSWFineTS = true;
+      else if (svalue == "Software")
+        fFlagSWFineTS = true;
+      else
+        fFlagSWFineTS = false;
     }
   }
 
   return 0;
 }
 
-int ReaderPSD::daq_unconfigure()
+int ReaderQDC::daq_unconfigure()
 {
-  std::cerr << "*** ReaderPSD::unconfigure" << std::endl;
+  std::cerr << "*** ReaderQDC::unconfigure" << std::endl;
 
   fDigitizer->FreeMemory();
   fDigitizer->CloseDigitizers();
@@ -150,9 +156,9 @@ int ReaderPSD::daq_unconfigure()
   return 0;
 }
 
-int ReaderPSD::daq_start()
+int ReaderQDC::daq_start()
 {
-  std::cerr << "*** ReaderPSD::start" << std::endl;
+  std::cerr << "*** ReaderQDC::start" << std::endl;
 
   m_out_status = BUF_SUCCESS;
 
@@ -164,30 +170,30 @@ int ReaderPSD::daq_start()
   return 0;
 }
 
-int ReaderPSD::daq_stop()
+int ReaderQDC::daq_stop()
 {
-  std::cerr << "*** ReaderPSD::stop" << std::endl;
+  std::cerr << "*** ReaderQDC::stop" << std::endl;
 
   fDigitizer->Stop();
 
   return 0;
 }
 
-int ReaderPSD::daq_pause()
+int ReaderQDC::daq_pause()
 {
-  std::cerr << "*** ReaderPSD::pause" << std::endl;
+  std::cerr << "*** ReaderQDC::pause" << std::endl;
 
   return 0;
 }
 
-int ReaderPSD::daq_resume()
+int ReaderQDC::daq_resume()
 {
-  std::cerr << "*** ReaderPSD::resume" << std::endl;
+  std::cerr << "*** ReaderQDC::resume" << std::endl;
 
   return 0;
 }
 
-int ReaderPSD::read_data_from_detectors()
+int ReaderQDC::read_data_from_detectors()
 {
   int received_data_size = 0;
   /// write your logic here
@@ -259,7 +265,7 @@ int ReaderPSD::read_data_from_detectors()
   return received_data_size;
 }
 
-int ReaderPSD::set_data()
+int ReaderQDC::set_data()
 {
   unsigned char header[8];
   unsigned char footer[8];
@@ -279,7 +285,7 @@ int ReaderPSD::set_data()
   return packet.size();
 }
 
-int ReaderPSD::write_OutPort()
+int ReaderQDC::write_OutPort()
 {
   ////////////////// send data from OutPort  //////////////////
   bool ret = m_OutPort.write();
@@ -300,10 +306,10 @@ int ReaderPSD::write_OutPort()
   return 0;
 }
 
-int ReaderPSD::daq_run()
+int ReaderQDC::daq_run()
 {
   if (m_debug) {
-    std::cerr << "*** ReaderPSD::run" << std::endl;
+    std::cerr << "*** ReaderQDC::run" << std::endl;
   }
 
   if (check_trans_lock()) {  // check if stop command has come
@@ -311,14 +317,10 @@ int ReaderPSD::daq_run()
     return 0;
   }
 
-  if (fFlagSWTrg) {
-    for (auto i = 0; i < fNSWTrg; i++) fDigitizer->SendSWTrigger();
-  }
-
   int sentDataSize = 0;
   if (m_out_status ==
       BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
+    if (++fCounter > 5 || fDataContainer.GetSize() == 0) {
       fCounter = 0;
       read_data_from_detectors();
     }
@@ -336,10 +338,10 @@ int ReaderPSD::daq_run()
 }
 
 extern "C" {
-void ReaderPSDInit(RTC::Manager *manager)
+void ReaderQDCInit(RTC::Manager *manager)
 {
   RTC::Properties profile(reader_spec);
-  manager->registerFactory(profile, RTC::Create<ReaderPSD>,
-                           RTC::Delete<ReaderPSD>);
+  manager->registerFactory(profile, RTC::Create<ReaderQDC>,
+                           RTC::Delete<ReaderQDC>);
 }
 };

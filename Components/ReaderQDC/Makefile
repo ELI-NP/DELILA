@@ -1,4 +1,4 @@
-COMP_NAME = ReaderPHA
+COMP_NAME = ReaderQDC
 
 all: $(COMP_NAME)Comp
 
@@ -9,10 +9,12 @@ SRCS += ../../TDigiTES/src/Configure.cpp
 SRCS += ../../TDigiTES/src/ParamParser.cpp
 SRCS += ../../TDigiTES/src/TDigiTes.cpp
 SRCS += ../../TDigiTES/src/TPHA.cpp
+SRCS += ../../TDigiTES/src/TPSD.cpp
+SRCS += ../../TDigiTES/src/TQDC.cpp
 SRCS += ../src/TDataContainer.cpp
 
-LDLIBS += -lCAENDigitizer -lcurl
-CPPFLAGS += -std=c++14 -O2 -I../../TDigiTES/include -I../include
+LDLIBS += -lCAENDigitizer
+CPPFLAGS += -O2 -std=c++14 -I../../TDigiTES/include -I../include
 
 # sample install target
 #

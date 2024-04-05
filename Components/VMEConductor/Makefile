@@ -12,7 +12,7 @@ SRCS += ../src/TDataContainer.cpp
 
 LDLIBS += -ldl
 
-CPPFLAGS += -I../../TDigiTES/include -I../include
+CPPFLAGS += -O2 -I../../TDigiTES/include -I../include
 
 # sample install target
 #

@@ -4,6 +4,7 @@ all: $(COMP_NAME)Comp
 
 SRCS += $(COMP_NAME).cpp
 SRCS += $(COMP_NAME)Comp.cpp
+CPPFLAGS += -O2
 
 # sample install target
 #

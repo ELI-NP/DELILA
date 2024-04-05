@@ -207,6 +207,7 @@ int ReaderPHA::daq_start()
   }
 
   fDigitizer->Start();
+  fDataBuffer.reset(new std::vector<char>);
 
   return 0;
 }
@@ -234,13 +235,39 @@ int ReaderPHA::daq_resume()
   return 0;
 }
 
-int ReaderPHA::read_data_from_detectors()
+void ReaderPHA::StartThreads()
 {
-  int received_data_size = 0;
-  /// write your logic here
+  fDataReadThreadFlag = true;
+  fDataReadThread = std::thread(&ReaderPHA::DataReadThread, this);
 
-  constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
+  fDataProcessThreadFlag = true;
+  fDataProcessThread = std::thread(&ReaderPHA::DataProcessThread, this);
+}
 
+void ReaderPHA::StopThreads()
+{
+  fDataReadThreadFlag = false;
+  fDataProcessThreadFlag = false;
+
+  fDataReadThread.join();
+  fDataProcessThread.join();
+}
+
+void ReaderPHA::DataReadThread()
+{
+  while (fDataProcessThreadFlag) {
+    fDigitizer->ReadEvents();
+    auto data = fDigitizer->GetData();
+    if (data->size() > 0) {
+      std::lock_guard<std::mutex> lock(fDataMutex);
+      fDataVec.push_back(std::move(data));
+    }
+    usleep(10);
+  }
+}
+
+void ReaderPHA::DataProcessThread()
+{
   constexpr auto sizeMod = sizeof(TreeData::Mod);
   constexpr auto sizeCh = sizeof(TreeData::Ch);
   constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
@@ -249,66 +276,62 @@ int ReaderPHA::read_data_from_detectors()
   constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  fDigitizer->ReadEvents();
-  auto data = fDigitizer->GetData();
-  // std::cout << data->size() << std::endl;
-  if (data->size() > 0) {
-    const auto nData = data->size();
+  while (fDataProcessThreadFlag) {
+    if (fDataVec.size() > 0) {
+      std::vector<std::unique_ptr<std::vector<std::unique_ptr<TreeData_t>>>>
+          dataVec;
+      {
+        std::lock_guard<std::mutex> lock(fDataMutex);
+        dataVec = std::move(fDataVec);
+        fDataVec.clear();
+      }
 
-    for (auto i = 0; i < nData; i++) {
-      const auto oneHitSize =
-          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
-          sizeRL + (sizeof(TreeData::Trace1[0]) * data->at(i)->RecordLength);
+      for (auto i = 0; i < dataVec.size(); i++) {
+        for (auto j = 0; j < dataVec[i]->size(); j++) {
+          auto data = std::move(dataVec[i]->at(j));
+          const auto oneHitSize =
+              sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
+              sizeRL + (sizeof(TreeData::Trace1[0]) * data->RecordLength);
+          auto index = 0;
+          std::vector<char> hit;
+          hit.resize(oneHitSize);
 
-      if (data->at(i)->ChargeLong > 0 && data->at(i)->ChargeLong < 32767) {
-        auto index = 0;
-        std::vector<char> hit;
-        hit.resize(oneHitSize);
+          TreeData dummy;
+          dummy.Mod = data->Mod + fStartModNo;
+          memcpy(&hit[index], &(dummy.Mod), sizeMod);
+          index += sizeMod;
 
-        TreeData dummy;
+          memcpy(&hit[index], &(data->Ch), sizeCh);
+          index += sizeCh;
 
-        dummy.Mod = data->at(i)->Mod + fStartModNo;
-        memcpy(&hit[index], &(dummy.Mod), sizeMod);
-        index += sizeMod;
-        received_data_size += sizeMod;
+          memcpy(&hit[index], &(data->TimeStamp), sizeTS);
+          index += sizeTS;
 
-        memcpy(&hit[index], &(data->at(i)->Ch), sizeCh);
-        index += sizeCh;
-        received_data_size += sizeCh;
+          memcpy(&hit[index], &(data->FineTS), sizeFineTS);
+          index += sizeFineTS;
 
-        memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
-        index += sizeTS;
-        received_data_size += sizeTS;
+          memcpy(&hit[index], &(data->ChargeLong), sizeEne);
+          index += sizeEne;
 
-        memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
-        index += sizeFineTS;
-        received_data_size += sizeFineTS;
+          dummy.ChargeShort = 0;
+          memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
+          index += sizeShort;
 
-        memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeEne);
-        index += sizeEne;
-        received_data_size += sizeEne;
+          memcpy(&hit[index], &(data->RecordLength), sizeRL);
+          index += sizeRL;
 
-        dummy.ChargeShort = 0;
-        memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
-        index += sizeShort;
-        received_data_size += sizeShort;
+          const auto sizeTrace =
+              sizeof(TreeData::Trace1[0]) * data->RecordLength;
+          memcpy(&hit[index], &(data->Trace1[0]), sizeTrace);
 
-        memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
-        index += sizeRL;
-        received_data_size += sizeRL;
-
-        const auto sizeTrace =
-            sizeof(TreeData::Trace1[0]) * data->at(i)->RecordLength;
-        memcpy(&hit[index], &(data->at(i)->Trace1[0]), sizeTrace);
-        index += sizeTrace;
-        received_data_size += sizeTrace;
-
-        fDataContainer.AddData(hit);
+          fDataMutex.lock();
+          fDataBuffer->insert(fDataBuffer->end(), hit.begin(), hit.end());
+          fDataMutex.unlock();
+        }
       }
     }
+    usleep(10);
   }
-
-  return received_data_size;
 }
 
 int ReaderPHA::set_data()
@@ -316,19 +339,26 @@ int ReaderPHA::set_data()
   unsigned char header[8];
   unsigned char footer[8];
 
-  auto packet = fDataContainer.GetPacket();
+  std::vector<char> *dataBuffer;
+  {
+    std::lock_guard<std::mutex> lock(fDataMutex);
+    dataBuffer = fDataBuffer.release();
+    fDataBuffer.reset(new std::vector<char>);
+  }
+  auto size = dataBuffer->size();
 
-  set_header(&header[0], packet.size());
+  set_header(&header[0], size);
   set_footer(&footer[0]);
 
   /// set OutPort buffer length
-  m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
+  m_out_data.data.length(size + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
-  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
-  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + packet.size()]), &footer[0],
+  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &(dataBuffer->at(0)), size);
+  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + size]), &footer[0],
          FOOTER_BYTE_SIZE);
 
-  return packet.size();
+  delete dataBuffer;
+  return size;
 }
 
 int ReaderPHA::write_OutPort()
@@ -369,8 +399,7 @@ int ReaderPHA::daq_run()
 
   int sentDataSize = 0;
   if (m_out_status ==
-      BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    read_data_from_detectors();
+      BUF_SUCCESS) {            // previous OutPort.write() successfully done
     sentDataSize = set_data();  // set data to OutPort Buffer
   }
 

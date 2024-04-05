@@ -8,6 +8,7 @@ SRCS += ../src/TDataContainer.cpp
 
 LDLIBS += -lCAENDigitizer
 CPPFLAGS += -I../../TDigiTES/include -I../include
+CPPFLAGS += -O2
 
 LDFLAGS += $(shell root-config --glibs)
 CPPFLAGS += -I$(shell root-config --incdir)
