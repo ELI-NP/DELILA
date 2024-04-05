@@ -206,8 +206,9 @@ int ReaderPHA::daq_start()
     }
   }
 
-  fDigitizer->Start();
   fDataBuffer.reset(new std::vector<char>);
+  StartThreads();
+  fDigitizer->Start();
 
   return 0;
 }
@@ -217,6 +218,7 @@ int ReaderPHA::daq_stop()
   std::cerr << "*** ReaderPHA::stop" << std::endl;
 
   fDigitizer->Stop();
+  StopThreads();
 
   return 0;
 }
@@ -277,7 +279,12 @@ void ReaderPHA::DataProcessThread()
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
   while (fDataProcessThreadFlag) {
-    if (fDataVec.size() > 0) {
+    auto dataSize = 0;
+    {
+      std::lock_guard<std::mutex> lock(fDataMutex);
+      dataSize = fDataVec.size();
+    }
+    if (dataSize > 0) {
       std::vector<std::unique_ptr<std::vector<std::unique_ptr<TreeData_t>>>>
           dataVec;
       {
@@ -329,6 +336,8 @@ void ReaderPHA::DataProcessThread()
           fDataMutex.unlock();
         }
       }
+    } else {
+      // std::cout <<"no data"<< std::endl;
     }
     usleep(10);
   }
@@ -336,17 +345,25 @@ void ReaderPHA::DataProcessThread()
 
 int ReaderPHA::set_data()
 {
+  if (m_debug) {
+    std::cerr << "*** ReaderPHA::set_data" << std::endl;
+  }
+    
   unsigned char header[8];
   unsigned char footer[8];
 
-  std::vector<char> *dataBuffer;
+  std::vector<char> *dataBuffer = nullptr;
   {
     std::lock_guard<std::mutex> lock(fDataMutex);
-    dataBuffer = fDataBuffer.release();
-    fDataBuffer.reset(new std::vector<char>);
+    if(fDataBuffer->size() > 0) {
+      dataBuffer = fDataBuffer.release();
+      fDataBuffer.reset(new std::vector<char>);
+    }
   }
+  if(dataBuffer == nullptr) return 0;
   auto size = dataBuffer->size();
 
+  if(size > 0) {
   set_header(&header[0], size);
   set_footer(&footer[0]);
 
@@ -356,7 +373,7 @@ int ReaderPHA::set_data()
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &(dataBuffer->at(0)), size);
   memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + size]), &footer[0],
          FOOTER_BYTE_SIZE);
-
+  }
   delete dataBuffer;
   return size;
 }
@@ -403,11 +420,14 @@ int ReaderPHA::daq_run()
     sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
-  if (write_OutPort() < 0) {
-    ;                                   // Timeout. do nothing.
-  } else {                              // OutPort write successfully done
-    inc_sequence_num();                 // increase sequence num.
-    inc_total_data_size(sentDataSize);  // increase total data byte size
+  if(sentDataSize > 0) {
+    // std::cout <<"Write port"<< std::endl;
+    if (write_OutPort() < 0) {
+      ;                                   // Timeout. do nothing.
+    } else {                              // OutPort write successfully done
+      inc_sequence_num();                 // increase sequence num.
+      inc_total_data_size(sentDataSize);  // increase total data byte size
+    }
   }
 
   return 0;

@@ -52,7 +52,6 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   int daq_resume();
 
   int parse_params(::NVList *list);
-  int read_data_from_detectors();
   int set_data();
   int write_OutPort();
 

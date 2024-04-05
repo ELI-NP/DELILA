@@ -159,6 +159,8 @@ int ReaderPSD::daq_start()
   fDataContainer = TDataContainer();
 
   // usleep(1000);
+  fDataBuffer.reset(new std::vector<char>);
+  StartThreads();
   fDigitizer->Start();
 
   return 0;
@@ -169,7 +171,7 @@ int ReaderPSD::daq_stop()
   std::cerr << "*** ReaderPSD::stop" << std::endl;
 
   fDigitizer->Stop();
-
+  StopThreads();
   return 0;
 }
 
@@ -187,13 +189,39 @@ int ReaderPSD::daq_resume()
   return 0;
 }
 
-int ReaderPSD::read_data_from_detectors()
+void ReaderPSD::StartThreads()
 {
-  int received_data_size = 0;
-  /// write your logic here
+  fDataReadThreadFlag = true;
+  fDataReadThread = std::thread(&ReaderPSD::DataReadThread, this);
 
-  constexpr auto maxSize = 2000000;  // < 2MB(2 * 1024 * 1024)
+  fDataProcessThreadFlag = true;
+  fDataProcessThread = std::thread(&ReaderPSD::DataProcessThread, this);
+}
 
+void ReaderPSD::StopThreads()
+{
+  fDataReadThreadFlag = false;
+  fDataProcessThreadFlag = false;
+
+  fDataReadThread.join();
+  fDataProcessThread.join();
+}
+
+void ReaderPSD::DataReadThread()
+{
+  while (fDataProcessThreadFlag) {
+    fDigitizer->ReadEvents();
+    auto data = fDigitizer->GetData();
+    if (data->size() > 0) {
+      std::lock_guard<std::mutex> lock(fDataMutex);
+      fDataVec.push_back(std::move(data));
+    }
+    usleep(10);
+  }
+}
+
+void ReaderPSD::DataProcessThread()
+{
   constexpr auto sizeMod = sizeof(TreeData::Mod);
   constexpr auto sizeCh = sizeof(TreeData::Ch);
   constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
@@ -202,81 +230,102 @@ int ReaderPSD::read_data_from_detectors()
   constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
   constexpr auto sizeRL = sizeof(TreeData::RecordLength);
 
-  fDigitizer->ReadEvents();
-  auto data = fDigitizer->GetData();
-
-  if (data->size() > 0) {
-    const auto nData = data->size();
-
-    for (auto i = 0; i < nData; i++) {
-      const auto oneHitSize =
-          sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
-          sizeRL + (sizeof(TreeData::Trace1[0]) * data->at(i)->RecordLength);
-
-      std::vector<char> hit;
-      hit.resize(oneHitSize);
-      auto index = 0;
-
-      unsigned char mod = data->at(i)->Mod + fStartModNo;
-      memcpy(&hit[index], &(mod), sizeMod);
-      index += sizeMod;
-      received_data_size += sizeMod;
-
-      memcpy(&hit[index], &(data->at(i)->Ch), sizeCh);
-      index += sizeCh;
-      received_data_size += sizeCh;
-
-      memcpy(&hit[index], &(data->at(i)->TimeStamp), sizeTS);
-      index += sizeTS;
-      received_data_size += sizeTS;
-
-      memcpy(&hit[index], &(data->at(i)->FineTS), sizeFineTS);
-      index += sizeFineTS;
-      received_data_size += sizeFineTS;
-
-      memcpy(&hit[index], &(data->at(i)->ChargeLong), sizeEne);
-      index += sizeEne;
-      received_data_size += sizeEne;
-
-      memcpy(&hit[index], &(data->at(i)->ChargeShort), sizeShort);
-      index += sizeShort;
-      received_data_size += sizeShort;
-
-      memcpy(&hit[index], &(data->at(i)->RecordLength), sizeRL);
-      index += sizeRL;
-      received_data_size += sizeRL;
-
-      const auto sizeTrace =
-          sizeof(TreeData::Trace1[0]) * data->at(i)->RecordLength;
-      memcpy(&hit[index], &(data->at(i)->Trace1[0]), sizeTrace);
-      index += sizeTrace;
-      received_data_size += sizeTrace;
-
-      fDataContainer.AddData(hit);
+  while (fDataProcessThreadFlag) {
+    auto dataSize = 0;
+    {
+      std::lock_guard<std::mutex> lock(fDataMutex);
+      dataSize = fDataVec.size();
     }
-  }
+    if (dataSize > 0) {
+      std::vector<std::unique_ptr<std::vector<std::unique_ptr<TreeData_t>>>>
+          dataVec;
+      {
+        std::lock_guard<std::mutex> lock(fDataMutex);
+        dataVec = std::move(fDataVec);
+        fDataVec.clear();
+      }
 
-  return received_data_size;
+      for (auto i = 0; i < dataVec.size(); i++) {
+        for (auto j = 0; j < dataVec[i]->size(); j++) {
+          auto data = std::move(dataVec[i]->at(j));
+          const auto oneHitSize =
+              sizeMod + sizeCh + sizeTS + sizeFineTS + sizeEne + sizeShort +
+              sizeRL + (sizeof(TreeData::Trace1[0]) * data->RecordLength);
+          auto index = 0;
+          std::vector<char> hit;
+          hit.resize(oneHitSize);
+
+          TreeData dummy;
+          dummy.Mod = data->Mod + fStartModNo;
+          memcpy(&hit[index], &(dummy.Mod), sizeMod);
+          index += sizeMod;
+
+          memcpy(&hit[index], &(data->Ch), sizeCh);
+          index += sizeCh;
+
+          memcpy(&hit[index], &(data->TimeStamp), sizeTS);
+          index += sizeTS;
+
+          memcpy(&hit[index], &(data->FineTS), sizeFineTS);
+          index += sizeFineTS;
+
+          memcpy(&hit[index], &(data->ChargeLong), sizeEne);
+          index += sizeEne;
+
+          dummy.ChargeShort = 0;
+          memcpy(&hit[index], &(dummy.ChargeShort), sizeShort);
+          index += sizeShort;
+
+          memcpy(&hit[index], &(data->RecordLength), sizeRL);
+          index += sizeRL;
+
+          const auto sizeTrace =
+              sizeof(TreeData::Trace1[0]) * data->RecordLength;
+          memcpy(&hit[index], &(data->Trace1[0]), sizeTrace);
+
+          fDataMutex.lock();
+          fDataBuffer->insert(fDataBuffer->end(), hit.begin(), hit.end());
+          fDataMutex.unlock();
+        }
+      }
+    }
+    usleep(10);
+  }
 }
 
 int ReaderPSD::set_data()
 {
+ if (m_debug) {
+    std::cerr << "*** ReaderPHA::set_data" << std::endl;
+  }
+    
   unsigned char header[8];
   unsigned char footer[8];
 
-  auto packet = fDataContainer.GetPacket();
+  std::vector<char> *dataBuffer = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(fDataMutex);
+    if(fDataBuffer->size() > 0) {
+      dataBuffer = fDataBuffer.release();
+      fDataBuffer.reset(new std::vector<char>);
+    }
+  }
+  if(dataBuffer == nullptr) return 0;
+  auto size = dataBuffer->size();
 
-  set_header(&header[0], packet.size());
+  if(size > 0) {
+  set_header(&header[0], size);
   set_footer(&footer[0]);
 
   /// set OutPort buffer length
-  m_out_data.data.length(packet.size() + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
+  m_out_data.data.length(size + HEADER_BYTE_SIZE + FOOTER_BYTE_SIZE);
   memcpy(&(m_out_data.data[0]), &header[0], HEADER_BYTE_SIZE);
-  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &packet[0], packet.size());
-  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + packet.size()]), &footer[0],
+  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE]), &(dataBuffer->at(0)), size);
+  memcpy(&(m_out_data.data[HEADER_BYTE_SIZE + size]), &footer[0],
          FOOTER_BYTE_SIZE);
-
-  return packet.size();
+  }
+  delete dataBuffer;
+  return size;
 }
 
 int ReaderPSD::write_OutPort()
@@ -317,19 +366,17 @@ int ReaderPSD::daq_run()
 
   int sentDataSize = 0;
   if (m_out_status ==
-      BUF_SUCCESS) {  // previous OutPort.write() successfully done
-    if (++fCounter > 50 || fDataContainer.GetSize() == 0) {
-      fCounter = 0;
-      read_data_from_detectors();
-    }
+      BUF_SUCCESS) {            // previous OutPort.write() successfully done
     sentDataSize = set_data();  // set data to OutPort Buffer
   }
 
-  if (write_OutPort() < 0) {
-    ;                                   // Timeout. do nothing.
-  } else {                              // OutPort write successfully done
-    inc_sequence_num();                 // increase sequence num.
-    inc_total_data_size(sentDataSize);  // increase total data byte size
+  if(sentDataSize > 0) {
+    if (write_OutPort() < 0) {
+      ;                                   // Timeout. do nothing.
+    } else {                              // OutPort write successfully done
+      inc_sequence_num();                 // increase sequence num.
+      inc_total_data_size(sentDataSize);  // increase total data byte size
+    }
   }
 
   return 0;
