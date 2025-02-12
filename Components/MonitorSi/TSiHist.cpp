@@ -340,8 +340,8 @@ void TSiHist::FillByDigitizer(Digitizer digitizer, double weight)
       FillByPositionRear(position, weight);
     }
   } else {
-    std::cerr << "Error: digitizer " << digitizer.brd << " " << digitizer.ch
-              << " not found" << std::endl;
+    //std::cerr << "Error: digitizer " << digitizer.brd << " " << digitizer.ch
+    //<< " not found" << std::endl;
   }
 }
 

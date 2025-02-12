@@ -81,12 +81,20 @@ class Monitor : public DAQMW::DaqComponentBase
   long fCounter;
 
   static constexpr int kgMods = 10;
-  static constexpr int kgChs = 64;
+  static constexpr int kgChs = 16;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHist;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHistADC;
   std::array<std::array<std::unique_ptr<TGraph>, kgChs>, kgMods> fWaveform;
   std::unique_ptr<THttpServer> fServ;
 
+  static constexpr int kgDetectors = 25;
+  static constexpr Double_t kgPulseDuration = 200.;
+  std::array<std::string, kgDetectors> fDetNameList = {"A1", "A2", "A3", "A4", "A5", "B1", "B2", "B3", "B4", "B5","C1", "C2", "C3", "C4", "C5","-B1", "-B2", "-B3", "-B4", "-B5","-A1", "-A2", "-A3", "-A4", "-A5"};
+  Double_t fPulseTime;
+  std::array<std::unique_ptr<TH1D>, kgDetectors> fHistTimeDiff;
+  std::array<std::unique_ptr<TH1D>, kgDetectors> fHistTimeDiffSum;
+  void FillTimeDiff(std::vector<char> dataVec);
+  
   void RegisterHists();
   void RegisterDetectors(std::string fileName, std::string calDirName,
                          std::string rawDirName);

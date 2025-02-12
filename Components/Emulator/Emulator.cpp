@@ -69,7 +69,7 @@ Emulator::Emulator(RTC::Manager *manager)
       m_recv_byte_size(0),
       m_out_status(BUF_SUCCESS),
 
-      m_debug(true)
+      m_debug(false)
 {
   // Registration: InPort/OutPort/Service
 
@@ -84,7 +84,8 @@ Emulator::Emulator(RTC::Manager *manager)
   fRandom.seed(seedGen());
 
   fNEvents = 1000;
-
+  fMultiply = 1;
+  
   fSignalGen = nullptr;
   fNSamples = 0;
 }
@@ -134,6 +135,8 @@ int Emulator::parse_params(::NVList *list)
 
     if (sname == "NEvents") {
       fNEvents = std::stoi(svalue);
+    } else if (sname == "Multiply") {
+      fMultiply = std::stoi(svalue);
     } else if (sname == "Signal") {
       SetSignalGen(svalue);
     }
@@ -213,6 +216,7 @@ int Emulator::read_data_from_detectors()
   std::uniform_int_distribution<> doOrNot(0, 9);
   std::uniform_int_distribution<> rand8(0, 7);
   std::uniform_int_distribution<> rand16(0, 15);
+  std::uniform_int_distribution<> rand64(0, 63);
   std::uniform_int_distribution<> randInt(0, INT_MAX);
   std::uniform_real_distribution<> randDouble(0., DBL_MAX);
   std::normal_distribution<> randGaussian(1000.0, 100.0);
@@ -220,13 +224,21 @@ int Emulator::read_data_from_detectors()
   // if (doOrNot(fRandom) == 0) {
   if (true) {
     for (auto i = 0; i < fNEvents; i++) {
-      data.Mod = rand8(fRandom);
-      data.Ch = rand16(fRandom);
-      data.TimeStamp = randInt(fRandom);
-      data.FineTS = randDouble(fRandom);
+      // data.Mod = rand8(fRandom);
+      data.Mod = 0;
+      data.Ch = rand64(fRandom);
+      data.TimeStamp = time(nullptr);
+      data.FineTS = data.TimeStamp * 1000.;
       data.ChargeLong = randGaussian(fRandom);
       data.ChargeShort = randGaussian(fRandom);
       data.RecordLength = fNSamples;
+      //data.Mod = 0;
+      //data.Ch = i%64;
+      //data.TimeStamp = 0;
+      //data.FineTS = 0.;
+      //data.ChargeLong = 100;
+      //data.ChargeShort = 0;
+      //data.RecordLength = fNSamples;
 
       const auto oneHitSize = sizeMod + sizeCh + sizeTS + sizeFineTS +
                               sizeLong + sizeShort + sizeRL +
@@ -294,7 +306,10 @@ int Emulator::set_data()
   unsigned char footer[8];
 
   auto packet = fDataContainer.GetPacket();
-
+  for(auto i = 1; i < fMultiply; i++) {
+    packet.insert(packet.end(), packet.begin(), packet.end());
+  }
+  
   set_header(&header[0], packet.size());
   set_footer(&footer[0]);
 
@@ -359,7 +374,7 @@ int Emulator::daq_run()
   }
 
   if (write_OutPort() < 0) {
-    std::cout << m_out_status << std::endl;
+    // std::cout << m_out_status << std::endl;
     // } else if (sentDataSize > 0) {  // OutPort write successfully done
   } else {                              // OutPort write successfully done
     inc_sequence_num();                 // increase sequence num.

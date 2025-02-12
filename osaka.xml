@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<!-- DON'T REMOVE THE ABOVE LINE.                                     -->
+<!-- DON'T PUT ANY LINES ABOVE THE 1ST LINE.                          -->
+<!-- Sample config.xml to run TinySource and TinySink.                -->
+<!-- Please rewrite execPath (2 places), confFile (2 places) suitable -->
+<!-- for your directory structure.                                    -->
+<!-- run.py will create rtc.conf in /tmp/daqmw/rtc.conf               -->
+<!-- If you use run.py, set confFile as /tmp/daqmw/rtc.conf           -->
+<configInfo>
+  <daqOperator>
+    <hostAddr>127.0.0.1</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+	<component cid="ReaderPSD2Trace0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderPSD2Trace0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/ReaderPSD2Trace/ReaderPSD2TraceComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="ConfigFile">/home/aogaki/DELILA/psd52622.conf</param>
+	    <param pid="ConfigFile">/home/aogaki/DELILA/psd52621.conf</param>
+          </params>
+        </component>
+        <component cid="Dispatcher0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/Dispatcher/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="ReaderPSD2Trace0:reader_out"
+		    >dispatcher_in</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/MonitorTrace/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+		  <inPort from="Dispatcher0:dispatcher_out1" 
+		    >monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+	  </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/aogaki/DELILA/Components/RecorderTrace/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2"
+		    >reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+		  <param pid="OutputDir">/home/data/run</param>
+		  <param pid="SaveInterval">5</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>

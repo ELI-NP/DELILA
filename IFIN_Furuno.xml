@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<!-- DON'T REMOVE THE ABOVE LINE.                                     -->
+<!-- DON'T PUT ANY LINES ABOVE THE 1ST LINE.                          -->
+<!-- Sample config.xml to run TinySource and TinySink.                -->
+<!-- Please rewrite execPath (2 places), confFile (2 places) suitable -->
+<!-- for your directory structure.                                    -->
+<!-- run.py will create rtc.conf in /tmp/daqmw/rtc.conf               -->
+<!-- If you use run.py, set confFile as /tmp/daqmw/rtc.conf           -->
+<configInfo>
+  <daqOperator>
+    <hostAddr>192.168.146.59</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+      <component cid="ReaderQDC0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderQDC0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/ReaderQDC/ReaderQDCComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>7</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="StartModNo">0</param>
+	    <param pid="ConfigFile">/home/daq/DELILA/QDC1.conf</param>
+	  </params>
+        </component>
+      <component cid="ReaderTest0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderTest0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/ReaderTest/ReaderTestComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>6</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="StartModNo">1</param>
+	    <param pid="ConfigFile">/home/daq/DELILA/QDC2.conf</param>
+	  </params>
+        </component>
+	<component cid="ReaderPHA0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderPHA0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/ReaderPHA/ReaderPHAComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>5</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="StartModNo">5</param>
+	    <param pid="ConfigFile">/home/daq/DELILA/PHA.conf</param>
+	  </params>
+        </component>
+	<component cid="ReaderPSD0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderPSD0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/ReaderPSD/ReaderPSDComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="StartModNo">2</param>
+	    <param pid="ConfigFile">/home/daq/DELILA/PSD.conf</param>
+	  </params>
+        </component>
+        <component cid="Dispatcher0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/Dispatcher4to2/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="ReaderPSD0:reader_out">dispatcher_in1</inPort>
+	    <inPort from="ReaderPHA0:reader_out">dispatcher_in2</inPort>
+	    <inPort from="ReaderQDC0:reader_out">dispatcher_in3</inPort>
+	    <inPort from="ReaderTest0:reader_out">dispatcher_in4</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/MonitorSi/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out1">monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+	    <param pid="Calibration">/home/daq/DELILA/Calibration/p_128Te.dat</param>
+            <param pid="EveRateServer">192.168.146.59</param>
+            <param pid="Measurement">IFIN9MV</param>
+	    <param pid="SiConf1">/home/daq/DELILA/SiConf.conf</param>
+            <param pid="SiMap1">/home/daq/DELILA/SiMap1.conf</param>
+	    <param pid="SiConf2">/home/daq/DELILA/SiConf.conf</param>
+            <param pid="SiMap2">/home/daq/DELILA/SiMap2.conf</param>
+            <param pid="SignalList">/home/daq/DELILA/Hists/SignalList</param>
+            <param pid="BGOList">/home/daq/DELILA/Hists/BGOList</param>
+          </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>192.168.146.59</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/Recorder/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2">reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+	    <param pid="OutputDir">/data/3He_14N</param>
+	    <param pid="SaveInterval">30</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>

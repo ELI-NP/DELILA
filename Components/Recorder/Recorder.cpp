@@ -8,6 +8,7 @@
  */
 
 #include <unistd.h>
+#include <omp.h>
 
 #include <algorithm>
 #include <thread>
@@ -15,7 +16,6 @@
 
 #include <Compression.h>
 #include <TFile.h>
-#include <TROOT.h>
 #include <TSystem.h>
 
 #include "../../TDigiTES/include/TreeData.h"
@@ -58,8 +58,6 @@ Recorder::Recorder(RTC::Manager *manager)
 
       m_debug(false)
 {
-  ROOT::EnableImplicitMT();
-
   // Registration: InPort/OutPort/Service
 
   // Set InPort buffers
@@ -77,7 +75,7 @@ Recorder::Recorder(RTC::Manager *manager)
 
   fDataSize = 0.;
   // fDataLimit = 1024. * 1024. * 1024. * 0.9;  // 900 MiB
-  fDataLimit = 1024. * 1024. * 1024. * 1.;  // 1 GiB
+  fDataLimit = 1024. * 1024. * 1024. * 1.; // 1 GiB
   // fDataLimit = 1024. * 1024. * 1024. * 2.; // 2GiB
   // fDataLimit = 1024. * 1024. * 2.; // 2MiB
 
@@ -171,11 +169,17 @@ int Recorder::daq_start()
   m_in_status = BUF_SUCCESS;
   fRunNumber = get_run_number();
   fDataWriteFlag = false;
-  if (fRunNumber >= 0 && fRunNumber < INT_MAX) fDataWriteFlag = true;
+  if(fRunNumber >= 0 && fRunNumber < INT_MAX) fDataWriteFlag = true;
   fSubRunNumber = 0;
   fLastSave = time(nullptr);
   fDataSize = 0.;
 
+  if(fDataWriteFlag) {
+    fStopFlag = false;
+    fMakeTreeThread = std::thread(&Recorder::MakeTree, this);
+    fWriteFileThread = std::thread(&Recorder::WriteFile, this);
+  }
+  
   return 0;
 }
 
@@ -183,11 +187,17 @@ int Recorder::daq_stop()
 {
   std::cerr << "*** Recorder::stop" << std::endl;
   reset_InPort();
-
-  EnqueueData();
-  ResetVec();
-  for (auto &th : fThreadVec) th.join();
-  fThreadVec.clear();
+  
+  if(fDataWriteFlag){
+    EnqueueData();
+    ResetVec();
+    fStopFlag = true;
+    fMakeTreeThread.join();
+    fWriteFileThread.join();
+    //fMakeTreeThread.detach();
+    //fWriteFileThread.detach();
+  }
+  
 
   return 0;
 }
@@ -268,7 +278,7 @@ int Recorder::daq_run()
   inc_total_data_size(event_byte_size);  // increase total data byte size
   fDataSize += event_byte_size;
 
-  if (fDataWriteFlag) {
+  if(fDataWriteFlag){
     FillData(event_byte_size);
     auto now = time(nullptr);
     if ((now - fLastSave > fSaveInterval) || (fDataSize > fDataLimit)) {
@@ -285,7 +295,7 @@ int Recorder::daq_run()
 void Recorder::ResetVec()
 {
   fpDataVec.reset(new std::vector<TreeData>);
-  fpDataVec->reserve(2 * fDataLimit / sizeof(TreeData));
+  fpDataVec->reserve(1.4 * (fDataLimit / sizeof(TreeData)));
 }
 
 int Recorder::FillData(unsigned int dataSize)
@@ -334,8 +344,12 @@ int Recorder::FillData(unsigned int dataSize)
       i += sizeTrace;
     }
 
-    fpDataVec->push_back(data);
-    nHits++;
+    // if(data.ChargeLong < 32768) {
+    if(true) {
+      data.TimeStamp = 0;
+      fpDataVec->push_back(data);
+      nHits++;
+    }
   }
 
   return nHits;
@@ -343,77 +357,126 @@ int Recorder::FillData(unsigned int dataSize)
 
 void Recorder::EnqueueData()
 {
-  // fThreadVec.push_back(
-  // std::thread(&Recorder::MakeTreeAndFile, this, fpDataVec.release()));
-  std::thread(&Recorder::MakeTreeAndFile, this, fpDataVec.release()).detach();
+  fMutex.lock();
+  fRawDataQueue.push_back(fpDataVec.release());
+  fMutex.unlock();
+
   ResetVec();
 }
 
 #include <parallel/algorithm>
-void Recorder::MakeTreeAndFile(std::vector<TreeData> *data)
+void Recorder::MakeTree()
 {
-  if (fDataWriteFlag) {
+  auto num_cpus = std::thread::hardware_concurrency();
+  omp_set_num_threads(num_cpus / 2);
+  
+  while (true) {
     fMutex.lock();
-    auto extention = "_" + fHostName + ".root";
-    auto fileName =
-        fOutputDir + Form("/run%d_%d", fRunNumber, fSubRunNumber) + extention;
-    if (!gSystem->AccessPathName(fileName)) {
-      // In the case of file already existing, adding UNIX time.
-      fileName =
-          fOutputDir +
-          Form("/run%d_%d_%ld", fRunNumber, fSubRunNumber, time(nullptr)) +
-          extention;
-    }
-    fSubRunNumber++;
+    auto nEntries = fRawDataQueue.size();
     fMutex.unlock();
 
-    auto file = new TFile(fileName, "NEW");
-    file->SetCompressionLevel(ROOT::RCompressionSetting::ELevel::kUncompressed);
+    if (nEntries > 0) {
+      fMutex.lock();
+      auto dataVec = fRawDataQueue.front();
+      fRawDataQueue.pop_front();
+      fMutex.unlock();
 
-    auto tree = new TTree("DELILA_Tree", "DELILA data");
-    tree->SetDirectory(file);
-    UChar_t Mod, Ch;
-    ULong64_t TimeStamp;
-    Double_t FineTS;
-    UShort_t ChargeLong;
-    UShort_t ChargeShort;
-    UInt_t RecordLength;
-    UShort_t Signal[100000]{0};
-    tree->Branch("Mod", &Mod, "Mod/b");
-    tree->Branch("Ch", &Ch, "Ch/b");
-    tree->Branch("TimeStamp", &TimeStamp, "TimeStamp/l");
-    tree->Branch("FineTS", &FineTS, "Finets/D");
-    tree->Branch("ChargeLong", &ChargeLong, "ChargeLong/s");
-    tree->Branch("ChargeShort", &ChargeShort, "ChargeShort/s");
-    tree->Branch("RecordLength", &RecordLength, "RecordLength/i");
-    tree->Branch("Signal", Signal, "Signal[RecordLength]/s");
+      auto tree = new TTree("ELIADE_Tree", "ELIADE data");
+      tree->SetDirectory(nullptr);
 
-    __gnu_parallel::sort(data->begin(), data->end(),
-                         [](const TreeData &a, const TreeData &b) {
-                           return a.FineTS < b.FineTS;
-                         });
+      __gnu_parallel::sort(dataVec->begin(), dataVec->end(),
+                      [](const TreeData &a, const TreeData &b) {
+                  return a.FineTS < b.FineTS;
+                });
 
-    for (auto iEve = 0; iEve < data->size(); iEve++) {
-      Mod = data->at(iEve).Mod;
-      Ch = data->at(iEve).Ch;
-      TimeStamp = data->at(iEve).TimeStamp;
-      FineTS = data->at(iEve).FineTS;
-      ChargeLong = data->at(iEve).ChargeLong;
-      ChargeShort = data->at(iEve).ChargeShort;
-      RecordLength = data->at(iEve).RecordLength;
-      if (RecordLength > 0)
-        std::copy(&data->at(iEve).Trace1[0],
-                  &data->at(iEve).Trace1[RecordLength], Signal);
+      UChar_t Mod, Ch;
+      ULong64_t TimeStamp;
+      Double_t FineTS;
+      UShort_t ChargeLong;
+      UShort_t ChargeShort;
+      UInt_t RecordLength;
+      UShort_t Signal[100000]{0};
+      tree->Branch("Mod", &Mod, "Mod/b");
+      tree->Branch("Ch", &Ch, "Ch/b");
+      tree->Branch("TimeStamp", &TimeStamp, "TimeStamp/l");
+      tree->Branch("FineTS", &FineTS, "Finets/D");
+      tree->Branch("ChargeLong", &ChargeLong, "ChargeLong/s");
+      tree->Branch("ChargeShort", &ChargeShort, "ChargeShort/s");
+      tree->Branch("RecordLength", &RecordLength, "RecordLength/i");
+      tree->Branch("Signal", Signal, "Signal[RecordLength]/s");
 
-      tree->Fill();
+      for (auto iEve = 0; iEve < dataVec->size(); iEve++) {
+        Mod = dataVec->at(iEve).Mod;
+        Ch = dataVec->at(iEve).Ch;
+        TimeStamp = dataVec->at(iEve).TimeStamp;
+        FineTS = dataVec->at(iEve).FineTS;
+        ChargeLong = dataVec->at(iEve).ChargeLong;
+        ChargeShort = dataVec->at(iEve).ChargeShort;
+        RecordLength = dataVec->at(iEve).RecordLength;
+        if (RecordLength > 0)
+          std::copy(&dataVec->at(iEve).Trace1[0],
+                    &dataVec->at(iEve).Trace1[RecordLength], Signal);
+
+        tree->Fill();
+      }
+
+      fMutex.lock();
+      fTreeQueue.push_back(tree);
+      fMutex.unlock();
+
+      delete dataVec;
     }
 
-    file->Write();
-    file->Close();
-    delete file;
-  }
+    if (fRawDataQueue.size() == 0 && fStopFlag) break;
 
-  delete data;
+    usleep(1000);
+  }
+}
+
+void Recorder::WriteFile()
+{
+  while (true) {
+    fMutex.lock();
+    auto nEntries = fTreeQueue.size();
+    fMutex.unlock();
+
+    if (nEntries > 0) {
+      fMutex.lock();
+      auto tree = fTreeQueue.front();
+      fTreeQueue.pop_front();
+      fMutex.unlock();
+
+      // auto hostName = "_" + fHostName;
+      auto extention = "_" + fHostName + ".root";
+      auto fileName =
+          fOutputDir + Form("/run%d_%d", fRunNumber, fSubRunNumber) + extention;
+      if (!gSystem->AccessPathName(fileName)) {
+        // In the case of file already existing, adding UNIX time.
+        fileName =
+            fOutputDir +
+            Form("/run%d_%d_%ld", fRunNumber, fSubRunNumber, time(nullptr)) +
+            extention;
+      }
+      fSubRunNumber++;
+
+      auto file = new TFile(fileName, "NEW");
+      // file->SetCompressionLevel(ROOT::RCompressionSetting::ELevel::kUncompressed);
+      file->SetCompressionLevel(ROOT::RCompressionSetting::ELevel::kUseMin);
+      tree->SetDirectory(file);
+      tree->Write();
+
+      std::cout << "\nFinished data writing: " << fileName << "\n"
+                << "Number of events in " << fileName << ": "
+                << tree->GetEntries() << std::endl;
+
+      file->Close();
+      delete file;
+    }
+
+    if (fRawDataQueue.size() == 0 && fTreeQueue.size() == 0 && fStopFlag) break;
+
+    usleep(1000);
+  }
 }
 
 extern "C" {

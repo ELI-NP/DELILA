@@ -22,10 +22,13 @@
 
 #include <array>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../../TDigiTES/include/TreeData.h"
+#include "./TSiHist.hpp"
 #include "DaqComponentBase.h"
 
 using namespace RTC;
@@ -71,10 +74,13 @@ class Monitor : public DAQMW::DaqComponentBase
   bool m_debug;
 
   // Fitting and monitoring
-  void FillHist(int size);
+  void FillHistsThread(std::vector<char> dataVec);
+  std::vector<std::thread> fThreads;
+  std::mutex fMutex;
+
   long fCounter;
 
-  static constexpr int kgMods = 8;
+  static constexpr int kgMods = 10;
   static constexpr int kgChs = 16;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHist;
   std::array<std::array<std::unique_ptr<TH1D>, kgChs>, kgMods> fHistADC;
@@ -93,6 +99,7 @@ class Monitor : public DAQMW::DaqComponentBase
   std::unique_ptr<TGraph> fGrEveRate;
   long fLastCountTime;
   std::string fEveRateServer;
+  std::string fMeasurement;
 
   // Calibration
   void ReadPar();
@@ -110,6 +117,10 @@ class Monitor : public DAQMW::DaqComponentBase
 
   // Reset Histograms
   void ResetHists();
+
+  SiDetector::TSiHist *fSiHist = nullptr;
+  std::string fSiConf = "";
+  std::string fSiMap = "";
 };
 
 extern "C" {

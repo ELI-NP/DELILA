@@ -52,7 +52,6 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   int daq_resume();
 
   int parse_params(::NVList *list);
-  int read_data_from_detectors();
   int set_data();
   int write_OutPort();
 
@@ -79,6 +78,23 @@ class ReaderPSD : public DAQMW::DaqComponentBase
   int fNSWTrg;
 
   TDataContainer fDataContainer;
+
+  // For MT
+  std::unique_ptr<std::vector<char>> fDataBuffer;
+  std::mutex fFinalDataMutex;
+  std::vector<std::unique_ptr<std::vector<std::unique_ptr<TreeData_t>>>>
+      fDataVec;
+  std::mutex fRawDataMutex;
+  void StartThreads();
+  void StopThreads();
+
+  std::thread fDataProcessThread;
+  bool fDataProcessThreadFlag;
+  void DataProcessThread();
+
+  std::thread fDataReadThread;
+  bool fDataReadThreadFlag;
+  void DataReadThread();
 };
 
 extern "C" {

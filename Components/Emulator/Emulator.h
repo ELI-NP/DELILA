@@ -70,7 +70,8 @@ class Emulator : public DAQMW::DaqComponentBase
   std::mt19937_64 fRandom;
 
   int fNEvents;
-
+  int fMultiply;
+  
   void SetSignalGen(std::string source);
   TF1 *fSignalGen;
   std::uniform_int_distribution<> fAmplitudeGen;

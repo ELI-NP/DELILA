@@ -232,10 +232,12 @@ int Monitor::daq_configure()
       TString histName = Form("hist%02d_%02d", iBrd, iCh);
       TString histTitle = Form("Brd%02d ch%02d", iBrd, iCh);
 
+      // const double eneMax = 3000.; // in keV
+      const double eneMax = 50000.; // in keV
       const double minBinWidth = fCalFnc[iBrd][iCh]->GetParameter(1);
       const double binWidth =
           (int(fBinWidth / minBinWidth) + 1) * minBinWidth;  // in keV
-      const double nBins = int(32000 / binWidth) + 1;
+      const double nBins = int(eneMax / binWidth) + 1;
       const double min = minBinWidth / 2. + fCalFnc[iBrd][iCh]->GetParameter(0);
       const double max = min + nBins * binWidth;
       fHist[iBrd][iCh].reset(new TH1D(histName, histTitle, nBins, min, max));
@@ -246,20 +248,33 @@ int Monitor::daq_configure()
           new TH1D(histName, histTitle, 32000, 0.5, 32000.5));
       fHistADC[iBrd][iCh]->SetXTitle("ADC channel");
 
-      TString grName = Form("signal%02d_%02d", iBrd, iCh);
-      fWaveform[iBrd][iCh].reset(new TGraph());
-      fWaveform[iBrd][iCh]->SetNameTitle(grName, histTitle);
-      fWaveform[iBrd][iCh]->SetMinimum(0);
-      fWaveform[iBrd][iCh]->SetMaximum(18000);
+      //TString grName = Form("signal%02d_%02d", iBrd, iCh);
+      //fWaveform[iBrd][iCh].reset(new TGraph());
+      //fWaveform[iBrd][iCh]->SetNameTitle(grName, histTitle);
+      //fWaveform[iBrd][iCh]->SetMinimum(0);
+      //fWaveform[iBrd][iCh]->SetMaximum(18000);
     }
   }
 
+  for(auto iDet = 0; iDet < kgDetectors; iDet++) {
+    TString histName = "HistTimeDiff_" + fDetNameList[iDet];
+    TString histTitle = "Time Difference: " + fDetNameList[iDet];
+    // fHistTimeDiff[iDet].reset(new TH1D(histName, histTitle, 51201, -0.5, 51200.5));
+    fHistTimeDiff[iDet].reset(new TH1D(histName, histTitle, 1101, -0.5, 1100.5));
+    fHistTimeDiff[iDet]->SetXTitle("[ns]");
+
+    histName = "HistTimeDiffSum_" + fDetNameList[iDet];
+    histTitle = "Time Difference Sum: " + fDetNameList[iDet];
+    fHistTimeDiffSum[iDet].reset(new TH1D(histName, histTitle, 4001, -0.05, 400.05));
+    fHistTimeDiffSum[iDet]->SetXTitle("[ns]");
+  }
+  
   RegisterHists();
 
-  fGrEveRate.reset(new TGraph());
-  fGrEveRate->SetNameTitle("GrEveRate", "Total trigger count rate on monitor");
-  fGrEveRate->GetYaxis()->SetTitle("[cps]");
-  fServ->Register("/", fGrEveRate.get());
+  //fGrEveRate.reset(new TGraph());
+  //fGrEveRate->SetNameTitle("GrEveRate", "Total trigger count rate on monitor");
+  //fGrEveRate->GetYaxis()->SetTitle("[cps]");
+  //fServ->Register("/", fGrEveRate.get());
 
   if (fSiHist1 == nullptr && fSiConf1.size() > 0 && fSiMap1.size() > 0) {
     fSiHist1 = new SiDetector::TSiHist("SiHist1", fSiConf1);
@@ -286,12 +301,19 @@ void Monitor::RegisterHists()
   if (fBGOListFile != "")
     RegisterDetectors(fBGOListFile, "/CalibratedBGO", "/RawBGO");
 
+  for(auto iDet = 0; iDet < kgDetectors; iDet++) {
+    TString tDiff = "/TimeDiff";
+    TString tDiffSum = "/TimeDiffSum";
+    fServ->Register(tDiff, fHistTimeDiff[iDet].get());
+    fServ->Register(tDiffSum, fHistTimeDiffSum[iDet].get());
+  }
+
   for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
     TString regDirectory = Form("/Brd%02d", iBrd);
     for (auto iCh = 0; iCh < kgChs; iCh++) {
       fServ->Register(regDirectory, fHist[iBrd][iCh].get());
       fServ->Register(regDirectory, fHistADC[iBrd][iCh].get());
-      fServ->Register(regDirectory, fWaveform[iBrd][iCh].get());
+      // fServ->Register(regDirectory, fWaveform[iBrd][iCh].get());
     }
   }
 }
@@ -391,6 +413,8 @@ int Monitor::daq_start()
   std::cerr << "*** Monitor::start" << std::endl;
   m_in_status = BUF_SUCCESS;
 
+  fPulseTime = 0.;
+  
   fLastCountTime = time(0);
   for (auto &&brd : fEventCounter) {
     for (auto &&ch : brd) {
@@ -425,7 +449,7 @@ int Monitor::daq_stop()
   reset_InPort();
 
   for (auto &th : fThreads) {
-    th.join();
+    // th.join();
   }
 
   return 0;
@@ -496,9 +520,9 @@ int Monitor::daq_run()
   // std::cout <<"Flag: " << fResetFlag << std::endl;
   if (fResetFlag) {
     ResetHists();
-    fResetFlag = kFALSE;
+    fResetFlag = kFALSE; 
+    gSystem->ProcessEvents();
   }
-  gSystem->ProcessEvents();
 
   if (fDumpAPI != "") {
     // fDumpState = "";
@@ -508,6 +532,7 @@ int Monitor::daq_run()
   }
 
   // constexpr auto uploadInterval = 60;
+  // constexpr auto uploadInterval = 1;
   constexpr auto uploadInterval = 10;
   auto now = time(0);
   auto timeDiff = now - fLastCountTime;
@@ -537,9 +562,131 @@ int Monitor::daq_run()
   // fThreads.push_back(std::thread(&Monitor::FillHistsThread, this, vecData));
   std::thread th(&Monitor::FillHistsThread, this, vecData);
   th.detach();
+
+  // FillTimeDiff(vecData);
+  
   gSystem->ProcessEvents();
 
   return 0;
+}
+
+#include <parallel/algorithm>
+void Monitor::FillTimeDiff(std::vector<char> dataVec)
+{
+  // Too bad.  Shame of programmer.
+  constexpr auto sizeMod = sizeof(TreeData::Mod);
+  constexpr auto sizeCh = sizeof(TreeData::Ch);
+  constexpr auto sizeTS = sizeof(TreeData::TimeStamp);
+  constexpr auto sizeFineTS = sizeof(TreeData::FineTS);
+  constexpr auto sizeEne = sizeof(TreeData::ChargeLong);
+  constexpr auto sizeShort = sizeof(TreeData::ChargeShort);
+  constexpr auto sizeRL = sizeof(TreeData::RecordLength);
+  
+  std::vector<TreeData_t> hitVec;
+  for (unsigned int i = 0; i < dataVec.size();) {
+    TreeData data;
+    // The order of data should be the same as Reader
+    memcpy(&data.Mod, &dataVec[i], sizeMod);
+    i += sizeMod;
+
+    memcpy(&data.Ch, &dataVec[i], sizeCh);
+    i += sizeCh;
+
+    memcpy(&data.TimeStamp, &dataVec[i], sizeTS);
+    i += sizeTS;
+
+    memcpy(&data.FineTS, &dataVec[i], sizeFineTS);
+    i += sizeFineTS;
+
+    memcpy(&data.ChargeLong, &dataVec[i], sizeEne);
+    i += sizeEne;
+
+    memcpy(&data.ChargeShort, &dataVec[i], sizeShort);
+    i += sizeShort;
+
+    memcpy(&data.RecordLength, &dataVec[i], sizeRL);
+    i += sizeRL;
+
+    auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
+    //memcpy(&data.Trace1[0], &dataVec[i], sizeTrace);
+    i += sizeTrace;
+
+    if(data.Mod == 5 || data.Mod == 8 || data.Mod == 9) {
+      hitVec.push_back(data);
+    }
+  }
+
+  __gnu_parallel::sort(hitVec.begin(), hitVec.end(),
+		       [](const TreeData &a, const TreeData &b) {
+			 return a.FineTS < b.FineTS;
+		       });
+
+  for(auto i = 0; i < hitVec.size(); i++) {
+    if(hitVec[i].Mod == 9 && hitVec[i].Ch == 15) {
+      fPulseTime = hitVec[i].FineTS;
+    } else{
+      uint32_t histIndex = 50;
+      if(hitVec[i].Mod == 8 && hitVec[i].Ch == 0) {
+	histIndex = 0;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 1) {
+	histIndex = 1;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 2) {
+	histIndex = 2;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 3) {
+	histIndex = 3;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 4) {
+	histIndex = 4;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 5) {
+	histIndex = 5;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 6) {
+	histIndex = 6;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 7) {
+	histIndex = 7;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 8) {
+	histIndex = 8;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 9) {
+	histIndex = 9;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 10) {
+	histIndex = 10;
+      } else if(hitVec[i].Mod == 5 && hitVec[i].Ch == 12) {
+	histIndex = 11;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 12) {
+	histIndex = 12;
+      } else if(hitVec[i].Mod == 8 && hitVec[i].Ch == 13) {
+	histIndex = 13;
+      } else if(hitVec[i].Mod == 5 && hitVec[i].Ch == 13) {
+	histIndex = 14;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 0) {
+	histIndex = 15;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 1) {
+	histIndex = 16;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 2) {
+	histIndex = 17;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 3) {
+	histIndex = 18;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 4) {
+	histIndex = 19;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 5) {
+	histIndex = 20;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 6) {
+	histIndex = 21;
+      } else if(hitVec[i].Mod == 9 && hitVec[i].Ch == 7) {
+	histIndex = 22;
+      } else if(hitVec[i].Mod == 5 && hitVec[i].Ch == 14) {
+	histIndex = 23;
+      } else if(hitVec[i].Mod == 5 && hitVec[i].Ch == 15) {
+	histIndex = 24;
+      }
+     
+      if(histIndex < kgDetectors){
+	auto t = (hitVec[i].FineTS - fPulseTime) / 1000.;
+	// std::cout << t << std::endl;
+	if(t < 1101) fHistTimeDiff[histIndex]->Fill(t);
+	fHistTimeDiffSum[histIndex]->Fill(std::fmod(t, kgPulseDuration * 2));
+      }
+    }
+  }
+  
 }
 
 void Monitor::FillHistsThread(std::vector<char> dataVec)
@@ -585,21 +732,16 @@ void Monitor::FillHistsThread(std::vector<char> dataVec)
 
     // Reject the overflow events
     if (data.Mod >= 0 && data.Mod < kgMods && data.Ch >= 0 && data.Ch < kgChs &&
-        data.ChargeLong < (1 << 15)) {
+        //data.ChargeLong < (1 << 15)) {
+	true) {
+      fMutex.lock();
       auto ene = fCalFnc[data.Mod][data.Ch]->Eval(data.ChargeLong);
+      eventCounter[data.Mod][data.Ch]++;
+      fMutex.unlock();
+      
       fHist[data.Mod][data.Ch]->Fill(ene);
       fHistADC[data.Mod][data.Ch]->Fill(data.ChargeLong);
-
-      // fMutex.lock();
-      eventCounter[data.Mod][data.Ch]++;
-      // fMutex.unlock();
-
-      for (auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
-        fWaveform[data.Mod][data.Ch]->SetPoint(iPoint, iPoint,
-                                               data.Trace1[iPoint]);
-      fWaveform[data.Mod][data.Ch]->GetXaxis()->SetRange();
-      // fWaveform[data.Mod][data.Ch]->GetYaxis()->SetRange(0, 18000);
-
+      /*
       if (fSiHist1 != nullptr) {
         auto digitizer = SiDetector::Digitizer(data.Mod, data.Ch);
         fSiHist1->FillByDigitizer(digitizer);
@@ -608,6 +750,7 @@ void Monitor::FillHistsThread(std::vector<char> dataVec)
         auto digitizer = SiDetector::Digitizer(data.Mod, data.Ch);
         fSiHist2->FillByDigitizer(digitizer);
       }
+      */
     }
   }
 
@@ -618,8 +761,8 @@ void Monitor::FillHistsThread(std::vector<char> dataVec)
       fEventCounter[iBrd][iCh] += eventCounter[iBrd][iCh];
     }
   }
-
   fMutex.unlock();
+
 }
 
 void Monitor::ResetHists()
@@ -634,6 +777,11 @@ void Monitor::ResetHists()
       ch->Reset();
     }
   }
+  for(auto iDet = 0; iDet < kgDetectors; iDet++) {
+    fHistTimeDiff[iDet]->Reset();
+    fHistTimeDiffSum[iDet]->Reset();
+  }
+
 }
 
 void Monitor::DumpHists()
@@ -664,22 +812,61 @@ void Monitor::DumpHists()
 
 void Monitor::UploadEventRate(int timeDuration)
 {
+  
+  // For 9MV
+  auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "dfn", "dfnuser", "influx10");
+
+  std::string resp;
+  auto now = time(nullptr);
+  influxdb_cpp::builder builder;
+  influxdb_cpp::detail::ts_caller *caller = nullptr;
+  constexpr int nMods = kgMods;
+
   fMutex.lock();
-  for (auto &&brd : fEventCounter) {
-    for (auto &&ch : brd) {
-      ch /= timeDuration;
-    }
-  }
-
-  auto buf = fEventCounter;
-
+  auto counter = fEventCounter;
   for (auto &&brd : fEventCounter) {
     for (auto &&ch : brd) {
       ch = 0;
     }
   }
   fMutex.unlock();
-
+  
+  for (auto mod = 0; mod < nMods; mod++) {
+    int nChs = kgChs;
+    if (mod > 1) nChs = 16;
+    double sum = 0.;
+    for (auto ch = 0; ch < nChs; ch++) {
+      double eventRate = counter[mod][ch] / timeDuration;
+      sum += eventRate;
+      auto fieldName = Form("B%dC%d", mod, ch);
+      if (caller) {
+        caller = &caller->meas(fMeasurement)
+	  .field(fieldName, eventRate);
+      } else {
+        caller = &builder.meas(fMeasurement)
+	  .field(fieldName, eventRate);
+      }
+    }
+    auto sumFieldName = Form("B%d", mod);
+    if (caller) {
+      caller = &caller->meas(fMeasurement)
+	.field(sumFieldName, sum);
+    } else {
+      caller = &builder.meas(fMeasurement)
+	.field(sumFieldName, sum);
+    }
+  }
+  if (caller) {
+    auto result = caller->post_http(server, &resp);
+    if (result != 0) {
+      std::cout << result << "\t" << resp << std::endl;
+    }
+  }
+  
+}
+/*
+void Monitor::UploadEventRate(int timeDuration)
+{
   auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
 
   std::string resp;
@@ -687,11 +874,28 @@ void Monitor::UploadEventRate(int timeDuration)
   influxdb_cpp::builder builder;
   influxdb_cpp::detail::ts_caller *caller = nullptr;
   constexpr int nMods = kgMods;
+
+  fMutex.lock();
+  auto counter = fEventCounter;
+  for (auto &&brd : fEventCounter) {
+    for (auto &&ch : brd) {
+      ch = 0;
+    }
+  }
+  fMutex.unlock();
+  
+  for (auto &&brd : counter) {
+    for (auto &&ch : brd) {
+      ch /= timeDuration;
+    }
+  }
+
+  
   for (auto mod = 0; mod < nMods; mod++) {
     int nChs = kgChs;
     if (mod > 1) nChs = 16;
     for (auto ch = 0; ch < nChs; ch++) {
-      auto eventRate = buf[mod][ch];
+      auto eventRate = counter[mod][ch];
       if (caller) {
         caller = &caller->meas(fMeasurement)
                       .tag("ch", std::to_string(ch))
@@ -714,7 +918,7 @@ void Monitor::UploadEventRate(int timeDuration)
     }
   }
 }
-
+*/
 extern "C" {
 void MonitorInit(RTC::Manager *manager)
 {

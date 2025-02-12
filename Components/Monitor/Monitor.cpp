@@ -11,6 +11,7 @@
 
 #include <TBufferJSON.h>
 #include <TCanvas.h>
+#include <TROOT.h>
 #include <TStyle.h>
 #include <TSystem.h>
 #include <sys/stat.h>
@@ -105,6 +106,7 @@ Monitor::Monitor(RTC::Manager *manager)
       m_in_status(BUF_SUCCESS),
       m_debug(false)
 {
+  ROOT::EnableImplicitMT();
   // Registration: InPort/OutPort/Service
 
   // Set InPort buffers
@@ -118,7 +120,7 @@ Monitor::Monitor(RTC::Manager *manager)
   gStyle->SetOptFit(1111);
   fServ.reset(new THttpServer("http:8080?monitoring=5000;rw;noglobal"));
   fServ->SetCors();
-  
+
   fResetFlag = kFALSE;
   fServ->RegisterCommand("/ResetHists", "fResetFlag=kTRUE",
                          "button;rootsys/icons/refresh.png");
@@ -128,6 +130,7 @@ Monitor::Monitor(RTC::Manager *manager)
   fDumpAPI = "";
   fDumpState = "";
   fEveRateServer = "";
+  fMeasurement = "";
 
   fCalibrationFile = "";
 
@@ -143,6 +146,7 @@ Monitor::Monitor(RTC::Manager *manager)
       fCalFnc[iBrd][iCh]->SetParameters(0.0, 1.0);
     }
   }
+  fSiHist = nullptr;
 }
 
 Monitor::~Monitor() { curl_easy_cleanup(fCurl); }
@@ -230,7 +234,7 @@ int Monitor::daq_configure()
       const double minBinWidth = fCalFnc[iBrd][iCh]->GetParameter(1);
       const double binWidth =
           (int(fBinWidth / minBinWidth) + 1) * minBinWidth;  // in keV
-      const double nBins = int(30000 / binWidth) + 1;
+      const double nBins = int(32000 / binWidth) + 1;
       const double min = minBinWidth / 2. + fCalFnc[iBrd][iCh]->GetParameter(0);
       const double max = min + nBins * binWidth;
       fHist[iBrd][iCh].reset(new TH1D(histName, histTitle, nBins, min, max));
@@ -238,9 +242,9 @@ int Monitor::daq_configure()
 
       histName = Form("ADC%02d_%02d", iBrd, iCh);
       fHistADC[iBrd][iCh].reset(
-          new TH1D(histName, histTitle, 30000, 0.5, 30000.5));
+          new TH1D(histName, histTitle, 32000, 0.5, 32000.5));
       fHistADC[iBrd][iCh]->SetXTitle("ADC channel");
-
+      
       TString grName = Form("signal%02d_%02d", iBrd, iCh);
       fWaveform[iBrd][iCh].reset(new TGraph());
       fWaveform[iBrd][iCh]->SetNameTitle(grName, histTitle);
@@ -256,6 +260,22 @@ int Monitor::daq_configure()
   fGrEveRate->GetYaxis()->SetTitle("[cps]");
   fServ->Register("/", fGrEveRate.get());
 
+  if (fSiHist == nullptr && fSiConf.size() > 0 && fSiMap.size() > 0) {
+    //double fInnerDiameter = 25.92;
+    //double fOuterDiameter = 70.09;
+    //int fNRings = 45;
+    //int fNSectorsRear = 16;
+    //int fNSectorsFront = 1;
+    //fSiHist = new SiDetector::TSiHist("SiHist", fInnerDiameter, fOuterDiameter,
+    //                                fNRings, fNSectorsRear, fNSectorsFront);
+
+    fSiHist = new SiDetector::TSiHist("SiHist", fSiConf);
+    fSiHist->LoadConfig(fSiMap);
+    fServ->Register("/", fSiHist->GetHistFront());
+    fServ->Register("/", fSiHist->GetHistRear());
+    fServ->Register("/", fSiHist->GetHistMatrix());
+  }
+
   return 0;
 }
 
@@ -268,10 +288,10 @@ void Monitor::RegisterHists()
 
   for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
     TString regDirectory = Form("/Brd%02d", iBrd);
-    for (auto iCh = 0; iCh < kgChs; iCh++) {
+    for (auto iCh = 0; iCh < 16; iCh++) {
       fServ->Register(regDirectory, fHist[iBrd][iCh].get());
       fServ->Register(regDirectory, fHistADC[iBrd][iCh].get());
-      fServ->Register(regDirectory, fWaveform[iBrd][iCh].get());
+      // fServ->Register(regDirectory, fWaveform[iBrd][iCh].get());
     }
   }
 }
@@ -334,12 +354,18 @@ int Monitor::parse_params(::NVList *list)
       fDumpAPI = svalue;
     } else if (sname == "EveRateServer") {
       fEveRateServer = svalue;
+    } else if (sname == "Measurement") {
+      fMeasurement = svalue;
     } else if (sname == "Calibration") {
       fCalibrationFile = svalue;
     } else if (sname == "SignalList") {
       fSignalListFile = svalue;
     } else if (sname == "BGOList") {
       fBGOListFile = svalue;
+    } else if (sname == "SiConf") {
+      fSiConf = svalue;
+    } else if (sname == "SiMap") {
+      fSiMap = svalue;
     } else if (sname == "BinWidth") {
       fBinWidth = std::stod(svalue);
       if (fBinWidth <= 0.) fBinWidth = 1.;
@@ -369,7 +395,15 @@ int Monitor::daq_start()
   }
 
   ResetHists();
-
+  if(fSiHist != nullptr) {
+  fSiHist->GetHistFront()->Reset("");
+  fSiHist->GetHistFront()->SetDrawOption("COLZ");
+  fSiHist->GetHistRear()->Reset("");
+  fSiHist->GetHistRear()->SetDrawOption("COLZ");
+  fSiHist->GetHistMatrix()->Reset("");
+  fSiHist->GetHistMatrix()->SetDrawOption("COLZ");
+  }
+  
   return 0;
 }
 
@@ -377,6 +411,10 @@ int Monitor::daq_stop()
 {
   std::cerr << "*** Monitor::stop" << std::endl;
   reset_InPort();
+
+  for (auto &th : fThreads) {
+    th.join();
+  }
 
   return 0;
 }
@@ -463,7 +501,7 @@ int Monitor::daq_run()
   auto timeDiff = now - fLastCountTime;
   if (timeDiff >= uploadInterval) {
     fLastCountTime = now;
-    UploadEventRate(timeDiff);
+    if (fEveRateServer.size() > 0) UploadEventRate(timeDiff);
   }
 
   unsigned int recv_byte_size = read_InPort();
@@ -473,26 +511,26 @@ int Monitor::daq_run()
 
   check_header_footer(m_in_data, recv_byte_size);  // check header and footer
   unsigned int event_byte_size = get_event_size(recv_byte_size);
+  inc_sequence_num();                    // increase sequence num.
+  inc_total_data_size(event_byte_size);  // increase total data byte size
 
   /////////////  Write component main logic here. /////////////
   // online_analyze();
   /////////////////////////////////////////////////////////////
 
-  FillHist(event_byte_size);
+  std::vector<char> vecData;
+  vecData.resize(event_byte_size);
+  constexpr int headerSize = 8;
+  memcpy(&vecData[0], &m_in_data.data[headerSize], event_byte_size);
+  // fThreads.push_back(std::thread(&Monitor::FillHistsThread, this, vecData));
+  std::thread th(&Monitor::FillHistsThread, this, vecData);
+  th.detach();
   gSystem->ProcessEvents();
-
-  // constexpr long updateInterval = 1000;
-  // if((fCounter++ % updateInterval) == 0){
-  // gSystem->ProcessEvents();
-  // }
-
-  inc_sequence_num();                    // increase sequence num.
-  inc_total_data_size(event_byte_size);  // increase total data byte size
 
   return 0;
 }
 
-void Monitor::FillHist(int size)
+void Monitor::FillHistsThread(std::vector<char> dataVec)
 {
   constexpr auto sizeMod = sizeof(TreeData::Mod);
   constexpr auto sizeCh = sizeof(TreeData::Ch);
@@ -504,32 +542,33 @@ void Monitor::FillHist(int size)
 
   TreeData data(5000);  // 5000 = 10us, enough big for waveform???
 
-  constexpr int headerSize = 8;
-  for (unsigned int i = headerSize; i < size;) {
+  std::array<std::array<int, kgChs>, kgMods> eventCounter{0};
+
+  for (unsigned int i = 0; i < dataVec.size();) {
     // The order of data should be the same as Reader
-    memcpy(&data.Mod, &m_in_data.data[i], sizeMod);
+    memcpy(&data.Mod, &dataVec[i], sizeMod);
     i += sizeMod;
 
-    memcpy(&data.Ch, &m_in_data.data[i], sizeCh);
+    memcpy(&data.Ch, &dataVec[i], sizeCh);
     i += sizeCh;
 
-    memcpy(&data.TimeStamp, &m_in_data.data[i], sizeTS);
+    memcpy(&data.TimeStamp, &dataVec[i], sizeTS);
     i += sizeTS;
 
-    memcpy(&data.FineTS, &m_in_data.data[i], sizeFineTS);
+    memcpy(&data.FineTS, &dataVec[i], sizeFineTS);
     i += sizeFineTS;
 
-    memcpy(&data.ChargeLong, &m_in_data.data[i], sizeEne);
+    memcpy(&data.ChargeLong, &dataVec[i], sizeEne);
     i += sizeEne;
 
-    memcpy(&data.ChargeShort, &m_in_data.data[i], sizeShort);
+    memcpy(&data.ChargeShort, &dataVec[i], sizeShort);
     i += sizeShort;
 
-    memcpy(&data.RecordLength, &m_in_data.data[i], sizeRL);
+    memcpy(&data.RecordLength, &dataVec[i], sizeRL);
     i += sizeRL;
 
     auto sizeTrace = sizeof(TreeData::Trace1[0]) * data.RecordLength;
-    memcpy(&data.Trace1[0], &m_in_data.data[i], sizeTrace);
+    memcpy(&data.Trace1[0], &dataVec[i], sizeTrace);
     i += sizeTrace;
 
     // Reject the overflow events
@@ -538,15 +577,33 @@ void Monitor::FillHist(int size)
       auto ene = fCalFnc[data.Mod][data.Ch]->Eval(data.ChargeLong);
       fHist[data.Mod][data.Ch]->Fill(ene);
       fHistADC[data.Mod][data.Ch]->Fill(data.ChargeLong);
-      fEventCounter[data.Mod][data.Ch]++;
 
+      eventCounter[data.Mod][data.Ch]++;
+      //fMutex.lock();
+      /*
       for (auto iPoint = 0; iPoint < data.RecordLength; iPoint++)
         fWaveform[data.Mod][data.Ch]->SetPoint(iPoint, iPoint,
                                                data.Trace1[iPoint]);
       fWaveform[data.Mod][data.Ch]->GetXaxis()->SetRange();
       // fWaveform[data.Mod][data.Ch]->GetYaxis()->SetRange(0, 18000);
+      */
+      if (fSiHist != nullptr && data.Mod == 0 && data.Ch >= 0 && data.Ch < 61) {
+        auto digitizer = SiDetector::Digitizer(data.Mod, data.Ch);
+        fSiHist->FillByDigitizer(digitizer);
+      }
+      //fMutex.unlock();
     }
   }
+
+  // Add eventCounter to fEventCounter
+  fMutex.lock();
+  for (auto iBrd = 0; iBrd < kgMods; iBrd++) {
+    for (auto iCh = 0; iCh < kgChs; iCh++) {
+      fEventCounter[iBrd][iCh] += eventCounter[iBrd][iCh];
+    }
+  }
+
+  fMutex.unlock();
 }
 
 void Monitor::ResetHists()
@@ -591,11 +648,21 @@ void Monitor::DumpHists()
 
 void Monitor::UploadEventRate(int timeDuration)
 {
+  fMutex.lock();
   for (auto &&brd : fEventCounter) {
     for (auto &&ch : brd) {
       ch /= timeDuration;
     }
   }
+
+  auto buf = fEventCounter;
+
+  for (auto &&brd : fEventCounter) {
+    for (auto &&ch : brd) {
+      ch = 0;
+    }
+  }
+  fMutex.unlock();
 
   auto server = influxdb_cpp::server_info(fEveRateServer, 8086, "event_rate");
 
@@ -608,15 +675,15 @@ void Monitor::UploadEventRate(int timeDuration)
     int nChs = kgChs;
     if (mod > 1) nChs = 16;
     for (auto ch = 0; ch < nChs; ch++) {
-      auto eventRate = fEventCounter[mod][ch];
+      auto eventRate = buf[mod][ch];
       if (caller) {
-        caller = &caller->meas("E8")
+        caller = &caller->meas(fMeasurement)
                       .tag("ch", std::to_string(ch))
                       .tag("mod", std::to_string(mod))
                       .field("rate", eventRate)
                       .timestamp(now * 1000000000);
       } else {
-        caller = &builder.meas("E8")
+        caller = &builder.meas(fMeasurement)
                       .tag("ch", std::to_string(ch))
                       .tag("mod", std::to_string(mod))
                       .field("rate", eventRate)
@@ -627,13 +694,7 @@ void Monitor::UploadEventRate(int timeDuration)
   if (caller) {
     auto result = caller->post_http(server, &resp);
     if (result != 0) {
-      std::cout << resp << std::endl;
-    }
-  }
-
-  for (auto &&brd : fEventCounter) {
-    for (auto &&ch : brd) {
-      ch = 0;
+      std::cout << result << "\t" << resp << std::endl;
     }
   }
 }

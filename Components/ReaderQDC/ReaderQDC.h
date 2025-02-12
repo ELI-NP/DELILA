@@ -76,6 +76,23 @@ class ReaderQDC : public DAQMW::DaqComponentBase
   bool fFlagSWFineTS = false;
   
   TDataContainer fDataContainer;
+
+  // For MT
+  std::unique_ptr<std::vector<char>> fDataBuffer;
+  std::mutex fFinalDataMutex;
+  std::vector<std::unique_ptr<std::vector<std::unique_ptr<TreeData_t>>>>
+      fDataVec;
+  std::mutex fRawDataMutex;
+  void StartThreads();
+  void StopThreads();
+
+  std::thread fDataProcessThread;
+  bool fDataProcessThreadFlag;
+  void DataProcessThread();
+
+  std::thread fDataReadThread;
+  bool fDataReadThreadFlag;
+  void DataReadThread();
 };
 
 extern "C" {

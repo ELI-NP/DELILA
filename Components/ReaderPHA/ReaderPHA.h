@@ -12,7 +12,10 @@
 
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "../../TDigiTES/include/TDigiTes.hpp"
 #include "../../TDigiTES/include/TPHA.hpp"
@@ -51,7 +54,6 @@ class ReaderPHA : public DAQMW::DaqComponentBase
   int daq_resume();
 
   int parse_params(::NVList *list);
-  int read_data_from_detectors();
   int set_data();
   int write_OutPort();
 
@@ -74,6 +76,24 @@ class ReaderPHA : public DAQMW::DaqComponentBase
   int fNSWTrg;
 
   TDataContainer fDataContainer;
+
+  // For MT
+  std::unique_ptr<std::vector<char>> fDataBuffer;
+  std::vector<std::unique_ptr<std::vector<std::unique_ptr<TreeData_t>>>>
+      fDataVec;
+  std::mutex fDataMutex;
+  std::mutex fRawDataMutex;
+  std::mutex fFinalDataMutex;
+  void StartThreads();
+  void StopThreads();
+
+  std::thread fDataProcessThread;
+  bool fDataProcessThreadFlag;
+  void DataProcessThread();
+
+  std::thread fDataReadThread;
+  bool fDataReadThreadFlag;
+  void DataReadThread();
 };
 
 extern "C" {

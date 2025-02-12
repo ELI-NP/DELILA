@@ -1,0 +1,80 @@
+<configInfo>
+  <daqOperator>
+    <hostAddr>127.0.0.1</hostAddr>
+  </daqOperator>
+  <daqGroups>
+    <daqGroup gid="group0">
+      <components>
+	<component cid="ReaderQDC0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>ReaderQDC0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/ReaderQDC/ReaderQDCComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>4</startOrd>
+          <inPorts>
+          </inPorts>
+          <outPorts>
+            <outPort>reader_out</outPort>
+          </outPorts>
+          <params>
+	    <param pid="RecordLength">5000</param>
+	    <param pid="ConfigFile">/home/daq/DELILA/QDC.conf</param>
+	  </params>
+        </component>
+        <component cid="Dispatcher0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Dispatcher0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/Dispatcher/DispatcherComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>3</startOrd>
+          <inPorts>
+	    <inPort from="ReaderQDC0:reader_out">dispatcher_in</inPort>
+          </inPorts>
+          <outPorts>
+            <outPort>dispatcher_out1</outPort>
+            <outPort>dispatcher_out2</outPort>
+          </outPorts>
+          <params>
+          </params>
+        </component>
+        <component cid="Monitor0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Monitor0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/Monitor/MonitorComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>2</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out1">monitor_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+	  <params>
+	    <param pid="Calibration">/home/daq/DELILA/Calibration/dummy.dat</param>
+            <param pid="EveRateServer">172.18.6.59</param>
+            <param pid="Measurement">E9</param>
+	  </params>
+        </component>
+        <component cid="Recorder0">
+          <hostAddr>127.0.0.1</hostAddr>
+          <hostPort>50000</hostPort>
+          <instName>Recorder0.rtc</instName>
+          <execPath>/home/daq/DELILA/Components/Recorder/RecorderComp</execPath>
+          <confFile>/tmp/daqmw/rtc.conf</confFile>
+          <startOrd>1</startOrd>
+          <inPorts>
+            <inPort from="Dispatcher0:dispatcher_out2">reader_in</inPort>
+          </inPorts>
+          <outPorts>
+          </outPorts>
+          <params>
+		  <param pid="OutputDir">/data/run/</param>
+		  <param pid="SaveInterval">10</param>
+          </params>
+        </component>
+      </components>
+    </daqGroup>
+  </daqGroups>
+</configInfo>
